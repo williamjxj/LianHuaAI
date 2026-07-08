@@ -1,0 +1,18 @@
+# ─── 核心依赖 ─────────────────────────────
+pyyaml>=6.0
+requests>=2.31
+Pillow>=10.0
+python-dotenv>=1.0
+
+# ─── LLM API ──────────────────────────────
+openai>=1.0            # 兼容 DeepSeek / Kimi / MiniMax (OpenAI-compatible API)
+
+# ─── 图像后期处理 ───────────────────────────
+opencv-python>=4.8
+numpy>=1.24
+
+# ─── 图像生成后端 ──────────────────────────
+replicate>=0.25        # Replicate API
+
+# ─── 可选: 进度显示 ────────────────────────
+tqdm>=4.65

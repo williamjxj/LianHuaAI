@@ -1,0 +1,65 @@
+# ──────────────────────────────────────────────
+# 中国传统白描连环画生成器 — 全局配置
+# ──────────────────────────────────────────────
+
+llm:
+  # 可选: deepseek | kimi | minimax
+  provider: deepseek
+  # 温度参数 (故事创作建议 0.7–0.9)
+  temperature: 0.85
+  # 最大生成 tokens
+  max_tokens: 2048
+
+image:
+  # 可选: replicate | comfyui | dry_run (仅生成文案和prompt, 不出图)
+  backend: dry_run
+  # 输出图片尺寸 (竖幅传统连环画开本比例)
+  width: 768
+  height: 1024
+  # 每批生成数量
+  batch_size: 1
+  # Replicate 配置
+  replicate:
+    model: stability-ai/stable-diffusion:db21e45d3f7023abc2a46c38b5f1e6c9c5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5
+    num_inference_steps: 30
+    guidance_scale: 7.5
+    lora_url: ""
+    lora_scale: 0.8
+
+  # ComfyUI 配置 (未来使用)
+  comfyui:
+    server_url: http://127.0.0.1:8188
+    workflow_path: assets/workflows/baimiao_workflow.json
+
+  # 后期处理
+  post_process:
+    paper_texture: true
+    aging_effect: true
+    aging_intensity: 0.35
+    add_border: true
+
+story:
+  # ─── 10大板块，每块10% ──────────────────────
+  # 10大板块各约11.1% (总和100%)
+  themes:
+    three_kingdoms:    11.12  # 三国演义
+    pre_qin:           11.11  # 东周列国（先秦）
+    western_han:       11.11  # 西汉历史
+    eastern_han:       11.11  # 东汉演义
+    sui_tang:          11.11  # 隋唐合集
+    song_dynasty:      11.11  # 宋代合集
+    ming_founding:     11.11  # 明代开国演义
+    general_history:   11.11  # 通史&志怪神魔合集
+    late_ming_qing:    11.11  # 晚明晚清乱世演义
+
+  # ─── 旁白风格（随机抽取） ──────────────────
+  # 可用风格: lin_handa | gao_yang | jin_yong | luo_guanzhong | shi_naian
+  # 留空则每轮随机抽取
+  narrator_style: random
+
+  # 旁白字数范围
+  narration_min_chars: 80
+  narration_max_chars: 150
+
+  # 避免重复题材
+  avoid_recent_topics: 5

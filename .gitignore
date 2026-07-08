@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# Secrets
+.env
+
+# 项目输出（生成图片、元数据）
+outputs/images/*
+outputs/metadata/*
+!outputs/images/.gitkeep
+!outputs/metadata/.gitkeep
+
+# IDE / OS
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# ComfyUI 工作流备份（用户自定义）
+assets/workflows/*.json
+
+# 文档设计稿
+docs/*.html

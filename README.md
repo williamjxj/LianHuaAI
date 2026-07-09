@@ -20,38 +20,40 @@ config.yaml                    # 全局配置
 src/
 ├── main.py                    # 入口 + 批量生成管线
 ├── config.py                  # 配置管理（加载 yaml + .env）
-├── models.py                  # 数据模型
+├── models.py                  # 数据模型（StoryOutput / ArtistStyle / ScenePlan）
 ├── story_engine/
-│   ├── generator.py           # 故事生成 (LLM + 10大板块 + 83个经典场景)
+│   ├── generator.py           # 故事生成 (LLM + 9大板块 + 83个经典场景)
 │   ├── narrator.py            # 旁白解说生成器
 │   └── prompts.py             # 系统提示词 + 5种解说风格
 ├── image_engine/
 │   ├── prompt_builder.py      # 白描风格 Prompt 构建 (中英双语)
-│   ├── backend.py             # 抽象后端接口
-│   ├── replicate_backend.py   # Replicate API 实现
+│   ├── backend.py             # 抽象后端接口 + ImageResult
 │   ├── runninghub_backend.py  # RunningHub (runninghub.cn) 云端后端
-│   ├── comfy_backend.py       # ComfyUI 本地后端 (预留)
+│   ├── zhipu_backend.py       # 智谱 AI (CogView-4/GLM-Image) 后端
+│   ├── tongyi_backend.py      # 通义万相 (wan2.7) 后端
+│   ├── minimax_backend.py     # MiniMax image-01 后端
+│   ├── replicate_backend.py   # Replicate API 实现
+│   ├── comfy_backend.py       # ComfyUI 本地后端 (预留桩)
 │   ├── style_manager.py       # 21位画师风格管理
-│   ├── post_process.py        # 宣纸纹理 + 泛黄做旧 + 传统边框
-│   ├── vision_qa.py           # LLM Vision 自动质检（彩色泄漏/现代元素/人体畸变）
-│   └── tongyi_backend.py      # 通义万相图像生成后端
+│   ├── post_process.py        # 宣纸纹理 + 泛黄做旧 + 传统边框 + 标题题字
+│   └── vision_qa.py           # LLM Vision 自动质检（彩色泄漏/现代元素/人体畸变）
 └── utils/
     └── random_utils.py        # 加权随机选择工具
 ```
 
-## 10大历史故事板块
+## 9大历史故事板块
 
 | 板块 | 占比 | 出处书目 | 场景数 |
 |------|------|----------|--------|
-| 三国演义 | ~11% | 《三国演义》 | 16 |
-| 东周列国（先秦） | ~11% | 《东周列国志》 | 10 |
-| 西汉历史 | ~11% | 《西汉演义》《史记》《汉书》 | 11 |
-| 东汉演义 | ~11% | 《东汉演义》《后汉书》 | 7 |
-| 隋唐合集 | ~11% | 《说唐》《隋唐演义》《薛家将》 | 8 |
-| 宋代合集 | ~11% | 《水浒传》《杨家将演义》《说岳全传》《三侠五义》 | 11 |
-| 明代开国演义 | ~11% | 《朱元璋演义》 | 6 |
-| 通史&志怪神魔合集 | ~11% | 《资治通鉴》《西游记》《聊斋志异》 | 7 |
-| 晚明晚清乱世演义 | ~12% | 《李自成演义》、太平天国故事、左宗棠西征 | 7 |
+| 三国演义 | ~11.12% | 《三国演义》 | 16 |
+| 东周列国（先秦） | ~11.11% | 《东周列国志》 | 10 |
+| 西汉历史 | ~11.11% | 《西汉演义》《史记》《汉书》 | 11 |
+| 东汉演义 | ~11.11% | 《东汉演义》《后汉书》 | 7 |
+| 隋唐合集 | ~11.11% | 《说唐》《隋唐演义》《薛家将》 | 8 |
+| 宋代合集 | ~11.11% | 《水浒传》《杨家将演义》《说岳全传》《三侠五义》 | 11 |
+| 明代开国演义 | ~11.11% | 《朱元璋演义》 | 6 |
+| 通史&志怪神魔合集 | ~11.11% | 《资治通鉴》《西游记》《聊斋志异》 | 7 |
+| 晚明晚清乱世演义 | ~11.11% | 《李自成演义》、太平天国故事、左宗棠西征 | 7 |
 | **合计** | **100%** | **20+ 部典籍** | **83** |
 
 **禁止题材**：现代、玄幻、架空、穿越、科幻。
@@ -80,9 +82,9 @@ src/
 
 - **画种**：传统白描（baimiao）墨线稿
 - **纸张**：宣纸质感，泛黄做旧
-- **构图**：横屏 16:9 传统连环画开本
+- **构图**：横屏 16:9（1024×576），传统连环画开本
 - **线条**：均匀排线，墨分五色
-- **版式**：经典连环画双线边框
+- **版式**：经典连环画双线边框 + 顶部标题题字
 
 严格禁止：彩色、CG、二次元、厚涂油画、现代服饰、科幻元素、扭曲人体、模糊线条
 
@@ -164,9 +166,10 @@ outputs/
 |------|------|------|
 | **RunningHub** (runninghub.cn) | ✅ 推荐 | 全能图片G-2 模型，中文理解强，消费级 API Key 即可使用 |
 | **Zhipu AI** (open.bigmodel.cn) | ✅ 可用 | CogView-4 / GLM-Image，支持按古典连环画优先策略自动选模 |
-| **Tongyi Wanxiang** (DashScope) | ✅ 可用 | 通义万相 2.7，中文古风理解好，适合作为国产主力对照组 |
-| Replicate API | ✅ 可用 | 云端 SDXL/FLUX，需 API Token（账户余额不足） |
-| ComfyUI 本地 | ⏳ 预留 | M3 本地推理，速度较慢 |
+| **Tongyi Wanxiang** (DashScope) | ✅ 可用 | 通义万相 wan2.7，中文古风理解好，适合作为国产主力对照组 |
+| **MiniMax** (minimaxi.com) | ✅ 可用 | image-01 模型，支持 16:9 横屏 |
+| Replicate API | ✅ 可用 | 云端 SDXL/FLUX，需 API Token（账户余额可能不足） |
+| ComfyUI 本地 | ⏳ 预留 | 本地推理预留桩（尚未实现） |
 | Dry Run | ✅ 可用 | 仅生成文案和 Prompt，不出图 |
 
 ### RunningHub 配置

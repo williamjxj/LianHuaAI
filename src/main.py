@@ -85,11 +85,15 @@ class ComicPipeline:
             from src.image_engine.tongyi_backend import TongyiBackend
 
             self.image_backend = TongyiBackend(self.config)
+        elif backend_type == "minimax":
+            from src.image_engine.minimax_backend import MiniMaxBackend
+
+            self.image_backend = MiniMaxBackend(self.config)
         elif backend_type == "dry_run":
             self.image_backend = None
         else:
             raise ValueError(
-                f"不支持的图像后端: {backend_type}，可选: replicate, comfyui, runninghub, zhipu, tongyi, dry_run"
+                f"不支持的图像后端: {backend_type}，可选: replicate, comfyui, runninghub, zhipu, tongyi, minimax, dry_run"
             )
 
     def generate_one(self, custom_theme: Optional[str] = None) -> dict:
@@ -236,9 +240,9 @@ class ComicPipeline:
                 print(f"   ❌ Vision QA 未通过: {'; '.join(qa_result.reasons)}")
                 return None
 
-            # 后期处理（不保存 raw 原始图）
-            print("   🎨 应用后期处理（宣纸纹理 + 做旧 + 边框）...")
-            processed = self.post_processor.process(img)
+            # 后期处理（标题题字 + 宣纸纹理 + 做旧 + 边框）
+            print("   🎨 应用后期处理（连环画标题 + 宣纸纹理 + 做旧 + 边框）...")
+            processed = self.post_processor.process(img, title=title)
             final_path = self.image_dir / f"{safe_name}.png"
             processed.save(final_path, quality=95)
 
@@ -259,9 +263,11 @@ class ComicPipeline:
 
     @staticmethod
     def _safe_filename(title: str) -> str:
-        """将标题转为安全文件名（不含时间戳）"""
+        """将标题转为安全文件名，附加时间戳（便于识别内容和防重）"""
         safe = "".join(c for c in title if c.isalnum() or c in " _-")
-        return safe.strip() or "untitled"
+        safe = safe.strip() or "untitled"
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f"{safe}_{ts}"
 
     def run_batch(
         self,

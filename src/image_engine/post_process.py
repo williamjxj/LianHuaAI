@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageEnhance
+from PIL import Image, ImageDraw, ImageFont
+
+
+# 宋体字路径（macOS 系统字体）
+_SONGTI_PATH = "/System/Library/Fonts/Supplemental/Songti.ttc"
+_SONGTI_INDEX = 1  # Songti SC Bold
 
 
 class PostProcessor:
@@ -15,6 +20,7 @@ class PostProcessor:
     - 宣纸纹理叠加（模拟传统宣纸质感）
     - 泛黄做旧效果（复古泛黄纸张纹理）
     - 传统版式边框（经典连环画边框）
+    - 连环画风格标题题字
     """
 
     def __init__(self, config: Optional[dict] = None):
@@ -23,11 +29,15 @@ class PostProcessor:
         self.aging_enabled = self._get("post_process.aging_effect", True)
         self.aging_intensity = self._get("post_process.aging_intensity", 0.35)
         self.add_border = self._get("post_process.add_border", True)
+        self.add_title = self._get("post_process.add_title", True)
 
         paper_texture_dir = self._get("post_process.paper_texture_dir", "assets/paper_textures")
         self.paper_texture_blend = self._get("post_process.paper_texture_blend", 0.15)
         self.texture_paths: List[Path] = []
         self._load_texture_files(paper_texture_dir)
+
+        self._title_font: Optional[ImageFont.FreeTypeFont] = None
+        self._subtitle_font: Optional[ImageFont.FreeTypeFont] = None
 
     def _get(self, key: str, default):
         """从嵌套配置中取值"""
@@ -40,11 +50,12 @@ class PostProcessor:
                 return default
         return val if val is not None else default
 
-    def process(self, image: Image.Image) -> Image.Image:
+    def process(self, image: Image.Image, title: Optional[str] = None) -> Image.Image:
         """对图像执行全套后期处理
 
         Args:
             image: PIL Image (RGB 或 RGBA)
+            title: 可选，用于添加到图像上的连环画风格标题
 
         Returns:
             处理后的 PIL Image
@@ -72,11 +83,77 @@ class PostProcessor:
             # 如果不做旧，直接转 RGB 的暖白底
             img_aged = self._to_warm_tone(img_paper)
 
-        # 5. 添加传统边框
+        # 5. 添加连环画风格标题题字
+        if self.add_title and title:
+            img_aged = self._add_lianhuanhua_title(img_aged, title)
+
+        # 6. 添加传统边框
         if self.add_border:
             img_aged = self._add_traditional_border(img_aged)
 
         return img_aged
+
+    def _get_title_font(self, target_size: int) -> ImageFont.FreeTypeFont:
+        """获取标题字体（Songti SC Bold），带缓存"""
+        if self._title_font is None or self._title_font.size != target_size:
+            self._title_font = ImageFont.truetype(_SONGTI_PATH, target_size, index=_SONGTI_INDEX)
+        return self._title_font
+
+    def _add_lianhuanhua_title(self, img: Image.Image, title: str) -> Image.Image:
+        """在图像顶部添加传统连环画风格标题
+
+        模仿传统小人书/连环画的版式标题：
+        - 顶部居中，宋体加粗
+        - 深墨色文字
+        - 半透明古纸底色条衬托
+        - 下方装饰细线分隔
+        """
+        width, height = img.size
+        draw = ImageDraw.Draw(img)
+
+        # 标题区高度：根据图像高度自适应（约 5%）
+        title_h = max(int(height * 0.055), 36)
+
+        # 字体：标题区高度的 55%
+        font_size = max(int(title_h * 0.55), 16)
+        font = self._get_title_font(font_size)
+
+        # 文字尺寸
+        bbox = draw.textbbox((0, 0), title, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
+
+        # 标题底色条位置（顶部居中）
+        padding_x = int(width * 0.04)
+        margin_y = max(int(height * 0.015), 6)
+        rect_x0 = padding_x
+        rect_y0 = margin_y
+        rect_x1 = width - padding_x
+        rect_y1 = margin_y + title_h
+
+        # 绘制半透明古纸底色条（暖白泛黄，与做旧风格统一）
+        overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        overlay_draw.rounded_rectangle(
+            [rect_x0, rect_y0, rect_x1, rect_y1],
+            radius=3,
+            fill=(245, 235, 215, 160),  # 古纸色，半透明
+        )
+        img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+        draw = ImageDraw.Draw(img)
+
+        # 绘制标题文字（深墨色，带轻微做旧感）
+        text_x = (width - text_w) // 2
+        text_y = rect_y0 + (title_h - text_h) // 2 - 2
+        text_color = (45, 40, 35)  # 深墨色，非纯黑
+        draw.text((text_x, text_y), title, font=font, fill=text_color)
+
+        # 下方装饰细线
+        line_y = rect_y1 + 2
+        line_color = (100, 90, 80)
+        draw.line([(padding_x + 4, line_y), (width - padding_x - 4, line_y)], fill=line_color, width=1)
+
+        return img
 
     def _enhance_contrast(self, img: Image.Image) -> Image.Image:
         """增强图像对比度，使墨线更清晰"""

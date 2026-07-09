@@ -117,5 +117,16 @@ def get_tongyi_api_key() -> str:
     return token
 
 
+def get_minimax_api_key() -> str:
+    token = os.getenv("MINIMAX_API_KEY")
+    if not token:
+        raise ValueError(
+            "MINIMAX_API_KEY 未设置。\n"
+            "请前往 https://platform.minimaxi.com 注册获取 API Key，\n"
+            "然后添加到 .env 文件: MINIMAX_API_KEY=your_key_here"
+        )
+    return token
+
+
 # 模块加载时自动加载环境变量
 load_env()

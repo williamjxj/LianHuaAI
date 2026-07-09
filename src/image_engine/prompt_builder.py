@@ -8,28 +8,31 @@ BASE_STYLE_PROMPT = (
     "traditional Chinese baimiao (白描) ink brush painting, "
     "classical Chinese comic book style (连环画), "
     "black ink on aged rice paper, "
+    "solid black ink fills (墨块) for armor, hair, and shadows, "
+    "strong black-and-white contrast, "
     "fine ink line drawing with elegant brush strokes, "
-    "uniform hatching lines, layered ink density (墨分五色), "
-    "vertical format composition, "
+    "layered ink density (墨分五色), "
+    "horizontal wide-screen comic panel composition, "
     "vintage antique paper texture, yellowed patina, "
-    "no color, no shading, pure line art, "
+    "no modern color, no western painting style, "
     "detailed traditional Chinese architecture and costumes, "
     "historical accuracy, dramatic narrative scene, "
     "expressive characters, vivid facial expressions, "
-    "masterpiece, high quality, intricate details"
+    "masterpiece, high quality, intricate details, printed comic book"
 )
 
 # ─── 反向 Prompt（严格禁止）───────────────────
 
 NEGATIVE_PROMPT = (
-    "color, CG, 3D, anime, manga, photorealistic, "
-    "oil painting, thick paint, watercolor, "
+    "colorful, CG, 3D, anime, manga, photorealistic, "
+    "oil painting, thick paint, watercolor, western painting, "
     "modern clothing, sci-fi, fantasy, "
     "distorted anatomy, deformed hands, bad proportion, "
     "blurry lines, fuzzy, low quality, sketchy, "
     "multiple mixed art styles, signatures, watermarks, "
-    "photo filter, gradient, soft shading, "
-    "perspective errors, architectural anachronisms"
+    "photo filter, gradient, soft shading, airbrushed, "
+    "perspective errors, architectural anachronisms, "
+    "computer generated, digital art look, smooth rendering"
 )
 
 # ─── 时代辅助描述 ───────────────────────────────
@@ -39,13 +42,15 @@ ERA_CONTEXT = {
         "Late Eastern Han dynasty, late 2nd century AD, "
         "Han dynasty armor and official robes, "
         "traditional Han architecture with roof tiles, "
-        "ancient Chinese weaponry: spears, swords, bows, shields"
+        "ancient Chinese weaponry: spears, swords, bows, shields, "
+        "Three Kingdoms era warriors and generals"
     ),
     "三国": (
         "Three Kingdoms period, 3rd century AD, "
         "Three Kingdoms armor and military attire, "
         "ancient Chinese war camps and city gates, "
-        "period-appropriate weapons and battle standards"
+        "period-appropriate weapons and battle standards, "
+        " classical 三国演义 novel illustrated scene"
     ),
     "春秋": (
         "Spring and Autumn period, ancient Chinese Warring States, "
@@ -95,14 +100,20 @@ def build_image_prompt(
     era_desc = ERA_CONTEXT.get(story.era, f"Ancient China, {story.era} period")
 
     parts = [
-        # 核心场景
+        # 场景描述（中文）
         story.scene_description,
 
-        # 画师风格
+        # 画师风格（中文）
         f"Art style: {artist_desc}",
 
+        # 画面整体要求 — 中英双语确保模型理解
+        "Overall: traditional Chinese ink painting style (中国传统水墨白描风格), "
+        "printed classical连环画 appearance, strong black ink contrast, "
+        "solid black fills on armor and shadows, "
+        "warm aged paper background, printed comic dot texture",
+
         # 连环画版式
-        "Layout: traditional Chinese comic (连环画) vertical format, "
+        "Layout: traditional Chinese comic (连环画) horizontal panel, "
         "framed composition, narrative scene from classic novel",
 
         # 历史背景
@@ -111,8 +122,8 @@ def build_image_prompt(
         # 白描技法
         "Technique: fine baimiao line art, even ink lines (铁线描), "
         "traditional Chinese ink brush technique, "
-        "black lines on off-white aged paper, "
-        "no color, no wash painting (没骨), pure line drawing",
+        "black lines on off-white aged paper with solid black fills, "
+        "no color wash, pure ink line drawing with ink mass shading",
 
         # 整体风格
         BASE_STYLE_PROMPT,

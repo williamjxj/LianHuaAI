@@ -127,6 +127,11 @@ class RunningHubBackend(ImageBackend):
         )
         resp.raise_for_status()
         data = resp.json()
+        code = data.get("code")
+        if code != 0:
+            raise RuntimeError(
+                f"RunningHub API 返回错误: code={code} msg={data.get('msg', 'unknown')}"
+            )
         return data.get("data", {}).get("taskId", "")
 
     def _poll_result(self, task_id: str) -> str:

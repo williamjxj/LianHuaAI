@@ -24,7 +24,7 @@ class ReplicateBackend(ImageBackend):
 
         self.model = replicate_cfg.get(
             "model",
-            "stability-ai/stable-diffusion:db21e45d3f7023abc2a46c38b5f1e6c9c5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5",
+            "stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc",
         )
         self.num_steps = replicate_cfg.get("num_inference_steps", 30)
         self.guidance_scale = replicate_cfg.get("guidance_scale", 7.5)

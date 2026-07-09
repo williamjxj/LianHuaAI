@@ -11,20 +11,49 @@ llm:
   max_tokens: 2048
 
 image:
-  # 可选: replicate | comfyui | dry_run (仅生成文案和prompt, 不出图)
-  backend: dry_run
-  # 输出图片尺寸 (竖幅传统连环画开本比例)
-  width: 768
-  height: 1024
+  # 可选: replicate | comfyui | runninghub | zhipu | tongyi | dry_run (仅生成文案和prompt, 不出图)
+  backend: runninghub
+  # 输出图片尺寸 (16:9 横屏，适配手机横屏展示)
+  width: 1024
+  height: 576
   # 每批生成数量
   batch_size: 1
   # Replicate 配置
   replicate:
-    model: stability-ai/stable-diffusion:db21e45d3f7023abc2a46c38b5f1e6c9c5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5
+    model: stability-ai/sdxl:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc
     num_inference_steps: 30
     guidance_scale: 7.5
     lora_url: ""
     lora_scale: 0.8
+
+  # RunningHub 配置 (runninghub.cn)
+  runninghub:
+    model: rhart-image-g-2-official
+    # 任务超时秒数
+    timeout: 300
+    # 轮询间隔秒数
+    poll_interval: 2
+
+  # 智谱 AI 配置 (open.bigmodel.cn)
+  zhipu:
+    # auto: 按提示词自动切换；classic_comic_first: 古典连环画优先
+    model: auto
+    model_strategy: classic_comic_first
+    classic_model: cogView-4-250304
+    text_heavy_model: glm-image
+    base_url: https://open.bigmodel.cn/api/paas/v4
+    timeout: 120
+    quality: hd
+    watermark_enabled: false
+
+  # 通义万相配置 (DashScope / 百炼)
+  tongyi:
+    model: wan2.7-image-pro
+    base_url: https://dashscope.aliyuncs.com/api/v1
+    timeout: 120
+    size: 2K
+    watermark: false
+    thinking_mode: true
 
   # ComfyUI 配置 (未来使用)
   comfyui:
@@ -52,12 +81,12 @@ story:
     general_history:   11.11  # 通史&志怪神魔合集
     late_ming_qing:    11.11  # 晚明晚清乱世演义
 
-  # ─── 旁白风格（随机抽取） ──────────────────
-  # 可用风格: lin_handa | gao_yang | jin_yong | luo_guanzhong | shi_naian
-  # 留空则每轮随机抽取
+  # ─── 旁白风格 ──────────────────────────────
+  # random = 每轮从5种风格中随机抽取
+  # 也可指定具体风格: 林汉达 | 高阳 | 金庸 | 罗贯中 | 施耐庵
   narrator_style: random
 
-  # 旁白字数范围
+  # 旁白解说词字数范围
   narration_min_chars: 80
   narration_max_chars: 150
 

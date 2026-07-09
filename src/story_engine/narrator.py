@@ -34,7 +34,7 @@ class Narrator:
 
         Args:
             scene_description: 画面场景描述
-            style: 旁白风格 (lin_handa | gao_yang | jin_yong | luo_guanzhong | shi_naian)
+            style: 旁白风格 (林汉达 | 高阳 | 金庸 | 罗贯中 | 施耐庵)
             min_chars: 最少字数
             max_chars: 最多字数
             theme: 故事题材
@@ -42,7 +42,7 @@ class Narrator:
         Returns:
             旁白文案
         """
-        style = style or self.config["story"].get("narrator_style", "lin_handa")
+        style = style or self.config["story"].get("narrator_style", "林汉达")
         min_chars = min_chars or self.config["story"].get("narration_min_chars", 80)
         max_chars = max_chars or self.config["story"].get("narration_max_chars", 150)
 

@@ -1,0 +1,309 @@
+[
+    {
+        "artist_name": "刘继卣",
+        "search_keywords_general": [
+            "刘继卣 连环画原稿",
+            "刘继卣 武松打虎 插图",
+            "刘继卣 大闹天宫 黑白连环画",
+            "刘继卣 鸡毛信 小人书内页",
+            "刘继卣 东郭先生 线稿"
+        ],
+        "search_keywords_lib": [
+            "刘继卣 武松打虎",
+            "刘继卣 大闹天宫",
+            "刘继卣 鸡毛信",
+            "刘继卣 东郭先生"
+        ],
+        "image_names": [
+            "刘继卣_武松打虎_01",
+            "刘继卣_大闹天宫_02",
+            "刘继卣_鸡毛信_03",
+            "刘继卣_东郭先生_04"
+        ]
+    },
+    {
+        "artist_name": "刘锡永",
+        "search_keywords_general": [
+            "刘锡永 三国演义连环画",
+            "刘锡永 长坂坡 内页",
+            "刘锡永 赤壁大战 战场插图",
+            "刘锡永 瓦岗寨 黑白小人书"
+        ],
+        "search_keywords_lib": [
+            "刘锡永 长坂坡",
+            "刘锡永 赤壁大战",
+            "刘锡永 瓦岗寨"
+        ],
+        "image_names": [
+            "刘锡永_长坂坡_01",
+            "刘锡永_赤壁大战_02",
+            "刘锡永_瓦岗寨_03"
+        ]
+    },
+    {
+        "artist_name": "陈光镒",
+        "search_keywords_general": [
+            "陈光镒 三国演义原稿",
+            "陈光镒 董卓进京 插图",
+            "陈光镒 千里走单骑 厮杀线稿"
+        ],
+        "search_keywords_lib": [
+            "陈光镒 董卓进京",
+            "陈光镒 千里走单骑"
+        ],
+        "image_names": [
+            "陈光镒_董卓进京_01",
+            "陈光镒_千里走单骑_02"
+        ]
+    },
+    {
+        "artist_name": "汪玉山",
+        "search_keywords_general": [
+            "汪玉山 三顾茅庐 连环画",
+            "汪玉山 走马荐诸葛 内页",
+            "汪玉山 三国演义文官线稿"
+        ],
+        "search_keywords_lib": [
+            "汪玉山 三顾茅庐",
+            "汪玉山 走马荐诸葛"
+        ],
+        "image_names": [
+            "汪玉山_三顾茅庐_01",
+            "汪玉山_走马荐诸葛_02"
+        ]
+    },
+    {
+        "artist_name": "凌涛",
+        "search_keywords_general": [
+            "凌涛 火烧连营 连环画",
+            "凌涛 三气周瑜 黑白原稿"
+        ],
+        "search_keywords_lib": [
+            "凌涛 火烧连营",
+            "凌涛 三气周瑜"
+        ],
+        "image_names": [
+            "凌涛_火烧连营_01",
+            "凌涛_三气周瑜_02"
+        ]
+    },
+    {
+        "artist_name": "李铁生",
+        "search_keywords_general": [
+            "李铁生 三国演义武将插图",
+            "李铁生 陈宫与曹操 线稿",
+            "李铁生 东周列国 战场连环画"
+        ],
+        "search_keywords_lib": [
+            "李铁生 陈宫与曹操",
+            "李铁生 东周列国"
+        ],
+        "image_names": [
+            "李铁生_陈宫与曹操_01",
+            "李铁生_东周列国_02"
+        ]
+    },
+    {
+        "artist_name": "徐正平",
+        "search_keywords_general": [
+            "徐正平 舌战群儒 连环画",
+            "徐正平 定军山 黄忠插图"
+        ],
+        "search_keywords_lib": [
+            "徐正平 舌战群儒",
+            "徐正平 定军山"
+        ],
+        "image_names": [
+            "徐正平_舌战群儒_01",
+            "徐正平_定军山_02"
+        ]
+    },
+    {
+        "artist_name": "冯墨农",
+        "search_keywords_general": [
+            "冯墨农 水淹七军 连环画",
+            "冯墨农 李郭交兵 混战原稿"
+        ],
+        "search_keywords_lib": [
+            "冯墨农 水淹七军",
+            "冯墨农 李郭交兵"
+        ],
+        "image_names": [
+            "冯墨农_水淹七军_01",
+            "冯墨农_李郭交兵_02"
+        ]
+    },
+    {
+        "artist_name": "朱光玉",
+        "search_keywords_general": [
+            "朱光玉 西厢记 仕女连环画",
+            "朱光玉 古典游园 白描线稿"
+        ],
+        "search_keywords_lib": [
+            "朱光玉 西厢记",
+            "朱光玉 游园"
+        ],
+        "image_names": [
+            "朱光玉_西厢记_01",
+            "朱光玉_游园_02"
+        ]
+    },
+    {
+        "artist_name": "严绍唐",
+        "search_keywords_general": [
+            "严绍唐 战长沙 老版三国演义连环画"
+        ],
+        "search_keywords_lib": [
+            "严绍唐 战长沙"
+        ],
+        "image_names": [
+            "严绍唐_战长沙_01"
+        ]
+    },
+    {
+        "artist_name": "杨青华",
+        "search_keywords_general": [
+            "杨青华 凤仪亭 貂蝉吕布插图",
+            "杨青华 貂蝉拜月 古典连环画"
+        ],
+        "search_keywords_lib": [
+            "杨青华 凤仪亭",
+            "杨青华 貂蝉拜月"
+        ],
+        "image_names": [
+            "杨青华_凤仪亭_01",
+            "杨青华_貂蝉拜月_02"
+        ]
+    },
+    {
+        "artist_name": "徐宏达",
+        "search_keywords_general": [
+            "徐宏达 桃园结义 连环画",
+            "徐宏达 白门楼 吕布插图"
+        ],
+        "search_keywords_lib": [
+            "徐宏达 桃园结义",
+            "徐宏达 白门楼"
+        ],
+        "image_names": [
+            "徐宏达_桃园结义_01",
+            "徐宏达_白门楼_02"
+        ]
+    },
+    {
+        "artist_name": "徐正方",
+        "search_keywords_general": [
+            "徐正方 甘露寺 刘备招亲 宫廷连环画"
+        ],
+        "search_keywords_lib": [
+            "徐正方 甘露寺"
+        ],
+        "image_names": [
+            "徐正方_甘露寺_01"
+        ]
+    },
+    {
+        "artist_name": "赵三岛",
+        "search_keywords_general": [
+            "赵三岛 失街亭 连环画原稿",
+            "赵三岛 姜维避祸 武将线稿"
+        ],
+        "search_keywords_lib": [
+            "赵三岛 失街亭",
+            "赵三岛 姜维避祸"
+        ],
+        "image_names": [
+            "赵三岛_失街亭_01",
+            "赵三岛_姜维避祸_02"
+        ]
+    },
+    {
+        "artist_name": "徐一鸣",
+        "search_keywords_general": [
+            "徐一鸣 智取陈仓 三国演义城池插图"
+        ],
+        "search_keywords_lib": [
+            "徐一鸣 智取陈仓"
+        ],
+        "image_names": [
+            "徐一鸣_智取陈仓_01"
+        ]
+    },
+    {
+        "artist_name": "屠全枫",
+        "search_keywords_general": [
+            "屠全枫 洛神赋 洛神 古典神话连环画"
+        ],
+        "search_keywords_lib": [
+            "屠全枫 洛神赋"
+        ],
+        "image_names": [
+            "屠全枫_洛神赋_01"
+        ]
+    },
+    {
+        "artist_name": "蒋萍",
+        "search_keywords_general": [
+            "蒋萍 西施浣纱 仕女白描连环画"
+        ],
+        "search_keywords_lib": [
+            "蒋萍 西施浣纱"
+        ],
+        "image_names": [
+            "蒋萍_西施浣纱_01"
+        ]
+    },
+    {
+        "artist_name": "徐进",
+        "search_keywords_general": [
+            "徐进 马跃檀溪 刘备 连环画内页"
+        ],
+        "search_keywords_lib": [
+            "徐进 马跃檀溪"
+        ],
+        "image_names": [
+            "徐进_马跃檀溪_01"
+        ]
+    },
+    {
+        "artist_name": "王亦秋",
+        "search_keywords_general": [
+            "王亦秋 杨门女将 连环画",
+            "王亦秋 兰亭传奇 文人雅集插图"
+        ],
+        "search_keywords_lib": [
+            "王亦秋 杨门女将",
+            "王亦秋 兰亭传奇"
+        ],
+        "image_names": [
+            "王亦秋_杨门女将_01",
+            "王亦秋_兰亭传奇_02"
+        ]
+    },
+    {
+        "artist_name": "胡若佛",
+        "search_keywords_general": [
+            "胡若佛 古典仕女 游丝白描原稿",
+            "胡若佛 杨家将 美人线稿"
+        ],
+        "search_keywords_lib": [
+            "胡若佛 仕女图"
+        ],
+        "image_names": [
+            "胡若佛_仕女图_01"
+        ]
+    },
+    {
+        "artist_name": "张令涛",
+        "search_keywords_general": [
+            "张令涛 梁红玉击鼓 战争连环画",
+            "张令涛 杨家将 战场群像"
+        ],
+        "search_keywords_lib": [
+            "张令涛 梁红玉击鼓"
+        ],
+        "image_names": [
+            "张令涛_梁红玉击鼓_01"
+        ]
+    }
+]

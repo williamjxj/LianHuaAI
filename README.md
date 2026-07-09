@@ -29,6 +29,7 @@ src/
 │   ├── prompt_builder.py      # 白描风格 Prompt 构建 (中英双语)
 │   ├── backend.py             # 抽象后端接口
 │   ├── replicate_backend.py   # Replicate API 实现
+│   ├── runninghub_backend.py  # RunningHub (runninghub.cn) 云端后端
 │   ├── comfy_backend.py       # ComfyUI 本地后端 (预留)
 │   ├── style_manager.py       # 21位画师风格管理
 │   └── post_process.py        # 宣纸纹理 + 泛黄做旧 + 传统边框
@@ -96,7 +97,7 @@ src/
 bash scripts/setup.sh
 
 # 2. 配置 API Key
-#    编辑 .env，填入 DeepSeek / Kimi / MiniMax + Replicate Token
+#    编辑 .env，填入 DeepSeek / Kimi / MiniMax + RunningHub API Key (或 Replicate Token)
 
 # 3. 测试运行（不调图像 API，仅验证故事生成流程）
 python -m src.main --dry-run
@@ -124,7 +125,11 @@ python -m src.main --batch 10 --delay 3 -o ./works   # 间隔 3 秒，输出到 
 `config.yaml` 可调整：
 
 - `llm.provider` — 切换 LLM 后端（deepseek / kimi / minimax）
-- `image.backend` — 图像后端（replicate / comfyui / dry_run）
+- `image.backend` — 图像后端（runninghub / replicate / zhipu / tongyi / comfyui / dry_run）
+- `image.runninghub.model` — RunningHub 模型（默认 `rhart-image-g-2-official`）
+- `image.zhipu.model` — 智谱图像模型（默认 `auto`，由策略选择）
+- `image.zhipu.model_strategy` — 智谱模型策略（默认 `classic_comic_first`）
+- `image.tongyi.model` — 通义万相模型（默认 `wan2.7-image-pro`）
 - `story.themes` — 各板块权重
 - `story.narrator_style` — 解说风格（random 则每轮随机抽取）
 - `image.post_process` — 宣纸纹理、做旧强度、边框开关
@@ -146,9 +151,76 @@ outputs/
 
 | 后端 | 状态 | 说明 |
 |------|------|------|
-| Replicate API | ✅ 可用 | 云端 SDXL/FLUX，需 API Token |
+| **RunningHub** (runninghub.cn) | ✅ 推荐 | 全能图片G-2 模型，中文理解强，消费级 API Key 即可使用 |
+| **Zhipu AI** (open.bigmodel.cn) | ✅ 可用 | CogView-4 / GLM-Image，支持按古典连环画优先策略自动选模 |
+| **Tongyi Wanxiang** (DashScope) | ✅ 可用 | 通义万相 2.7，中文古风理解好，适合作为国产主力对照组 |
+| Replicate API | ✅ 可用 | 云端 SDXL/FLUX，需 API Token（账户余额不足） |
 | ComfyUI 本地 | ⏳ 预留 | M3 本地推理，速度较慢 |
 | Dry Run | ✅ 可用 | 仅生成文案和 Prompt，不出图 |
+
+### RunningHub 配置
+
+`config.yaml` 中 `image.backend: runninghub` 时使用。基于 RunningHub **AI App API**（消费级-会员 API Key 可用），通过异步任务提交 + 轮询获取结果。
+
+详细 API 文档：[runninghub.cn 文档中心](https://www.runninghub.cn/runninghub-api-doc-cn)
+
+```yaml
+image:
+  backend: runninghub
+  runninghub:
+    model: rhart-image-g-2-official       # AI App ID: 2046794551444119554
+    timeout: 300                            # 任务超时秒数
+    poll_interval: 2                        # 轮询间隔秒数
+```
+
+环境变量 `.env`：
+```
+RUNNINGHUB_API_KEY=your_key_here
+```
+
+### Zhipu AI 配置
+
+`config.yaml` 中 `image.backend: zhipu` 时使用。通过智谱开放平台的图像生成 HTTP API 调用，适合中文古风、历史题材和连环画风格。
+
+```yaml
+image:
+    backend: zhipu
+    zhipu:
+        model: auto
+        model_strategy: classic_comic_first
+        classic_model: cogView-4-250304
+        text_heavy_model: glm-image
+        base_url: https://open.bigmodel.cn/api/paas/v4
+        timeout: 120
+        quality: hd
+        watermark_enabled: false
+```
+
+环境变量 `.env`：
+```
+ZHIPU_API_KEY=your_key_here
+```
+
+### 通义万相配置
+
+`config.yaml` 中 `image.backend: tongyi` 时使用。通过 DashScope / 百炼官方接口调用通义万相，适合批量生成古风图像。
+
+```yaml
+image:
+    backend: tongyi
+    tongyi:
+        model: wan2.7-image-pro
+        base_url: https://dashscope.aliyuncs.com/api/v1
+        timeout: 120
+        size: 2K
+        watermark: false
+        thinking_mode: true
+```
+
+环境变量 `.env`：
+```
+DASHSCOPE_API_KEY=your_key_here
+```
 
 ## 后期处理管线
 
@@ -179,9 +251,11 @@ comic/
 │   │   └── prompts.py
 │   ├── image_engine/
 │   │   ├── __init__.py
+│   │   ├── zhipu_backend.py        # 智谱 AI 图像生成后端
 │   │   ├── prompt_builder.py
 │   │   ├── backend.py
 │   │   ├── replicate_backend.py
+│   │   ├── runninghub_backend.py
 │   │   ├── comfy_backend.py
 │   │   ├── style_manager.py
 │   │   └── post_process.py

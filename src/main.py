@@ -72,10 +72,24 @@ class ComicPipeline:
             from src.image_engine.comfy_backend import ComfyUIBackend
 
             self.image_backend = ComfyUIBackend(self.config)
+        elif backend_type == "runninghub":
+            from src.image_engine.runninghub_backend import RunningHubBackend
+
+            self.image_backend = RunningHubBackend(self.config)
+        elif backend_type == "zhipu":
+            from src.image_engine.zhipu_backend import ZhipuBackend
+
+            self.image_backend = ZhipuBackend(self.config)
+        elif backend_type == "tongyi":
+            from src.image_engine.tongyi_backend import TongyiBackend
+
+            self.image_backend = TongyiBackend(self.config)
         elif backend_type == "dry_run":
             self.image_backend = None
         else:
-            raise ValueError(f"不支持的图像后端: {backend_type}，可选: replicate, comfyui, dry_run")
+            raise ValueError(
+                f"不支持的图像后端: {backend_type}，可选: replicate, comfyui, runninghub, zhipu, tongyi, dry_run"
+            )
 
     def generate_one(self, custom_theme: Optional[str] = None) -> dict:
         """生成一幅完整的连环画（故事 + 画面提示词 + 图片 + 旁白）

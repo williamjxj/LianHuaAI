@@ -76,8 +76,6 @@ ERA_CONTEXT = {
 
 def build_image_prompt(
     story: StoryOutput,
-    width: int = 768,
-    height: int = 1024,
 ) -> str:
     """构建完整的图像生成 prompt
 
@@ -86,8 +84,6 @@ def build_image_prompt(
 
     Args:
         story: 故事输出
-        width: 图片宽度
-        height: 图片高度
 
     Returns:
         完整 prompt 字符串

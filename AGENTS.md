@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI 驱动的单幅白描连环画自动生成系统。每次生成执行 5 重随机（题材板块→出处书目→经典场景→画师风格→解说风格），经 LLM 生成故事 + 图像 prompt → Replicate/ComfyUI 出图 → 后期宣纸纹理/做旧处理。
+AI 驱动的单幅白描连环画自动生成系统。每次生成执行 5 重随机（题材板块→出处书目→经典场景→画师风格→解说风格），经 LLM 生成故事 + 图像 prompt → RunningHub/Replicate 出图 → 后期宣纸纹理/做旧处理。
 
 **核心管道**: `config.yaml` → `StoryGenerator` → `Narrator` → `PromptBuilder` → `ImageBackend` → `PostProcessor`
 
@@ -21,6 +21,7 @@ src/
 │   ├── prompt_builder.py  # 白描 SD/FLUX prompt 构建 (中英双语)
 │   ├── backend.py         # ImageBackend 抽象接口
 │   ├── replicate_backend.py  # Replicate API 实现
+│   ├── runninghub_backend.py # RunningHub (runninghub.cn) 云端后端
 │   ├── comfy_backend.py   # ComfyUI 本地后端 (预留桩)
 │   ├── style_manager.py   # 21 画师查询
 │   └── post_process.py    # 宣纸纹理 + 泛黄做旧 + 双线边框
@@ -64,7 +65,11 @@ python -m src.main --batch 3 --theme three_kingdoms -o ./out  # 指定题材
 （对应 .env 中的 API Key 和环境变量命名）
 
 ### 图像后端切换
-`config.yaml#image.backend`: replicate / comfyui / dry_run
+`config.yaml#image.backend`: runninghub / replicate / zhipu / comfyui / dry_run
+- **runninghub**（推荐）: 基于 AI App API，消费级 Key 可用，中文理解强
+- **replicate**: 备用后端，需 API Token（可能余额不足）
+- **comfyui**: 本地推理预留桩
+- **dry_run**: 仅生成文案和 Prompt，不出图
 
 ## 禁止项
 
@@ -87,6 +92,8 @@ python-dotenv        ← config.py (.env 加载)
 ## 已知注意事项
 
 - `replicate_backend.py` 的 `model` 字段是 SDXL 默认值；换 FLUX 需改 `image.replicate.model`
+- `runninghub_backend.py` 基于 RunningHub AI App API（`POST /task/openapi/ai-app/run`），消费级-会员 Key 可用，但所有请求（含 status/outputs）均需传 `apiKey` 参数
+- `runninghub_backend.py` 的输出使用 `fileUrl`（驼峰）而非 `file_url`
 - `comfy_backend.py` 是空壳桩，仅返回 error
-- `scripts/setup.sh` 创建 `.venv` 并安装依赖，有 .env 不存在时从 `.env.example` 复制
+- `scripts/setup.sh` 创建 `venv` 并安装依赖，有 .env 不存在时从 `.env.example` 复制
 - Post-process 的 `_apply_paper_texture()` 使用 numpy 随机噪点，每次运行结果略有不同（期望行为）

@@ -22,7 +22,7 @@ echo "   ✓ $PYTHON_VERSION"
 
 # 2. 创建虚拟环境
 echo "🔍 [2/4] 设置 Python 虚拟环境..."
-VENV_DIR="$PROJECT_DIR/.venv"
+VENV_DIR="$PROJECT_DIR/venv"
 if [ ! -d "$VENV_DIR" ]; then
     python3 -m venv "$VENV_DIR"
     echo "   ✓ 虚拟环境已创建: $VENV_DIR"
@@ -86,7 +86,7 @@ echo "✅ 环境初始化完成！"
 echo ""
 echo "使用方法:"
 echo "  cd $PROJECT_DIR"
-echo "  source .venv/bin/activate"
+echo "  source venv/bin/activate"
 echo "  python -m src.main --dry-run      # 测试运行"
 echo "  python -m src.main --batch 5      # 生成5幅"
 echo "============================================"

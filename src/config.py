@@ -66,13 +66,53 @@ def get_llm_config(provider: str) -> Dict[str, str]:
 
 
 def get_replicate_token() -> str:
-    """获取 Replicate API Token"""
     token = os.getenv("REPLICATE_API_TOKEN")
     if not token:
         raise ValueError(
             "REPLICATE_API_TOKEN 未设置。\n"
             "请前往 https://replicate.com 注册获取 Token，\n"
             "然后添加到 .env 文件: REPLICATE_API_TOKEN=r8_..."
+        )
+    return token
+
+
+def get_runninghub_api_key() -> str:
+    token = os.getenv("RUNNINGHUB_API_KEY")
+    if not token:
+        raise ValueError(
+            "RUNNINGHUB_API_KEY 未设置。\n"
+            "请前往 https://www.runninghub.cn 注册获取 API Key，\n"
+            "然后添加到 .env 文件: RUNNINGHUB_API_KEY=your_key_here"
+        )
+    return token
+
+
+def get_zhipu_api_key() -> str:
+    token = (
+        os.getenv("ZHIPU_API_KEY")
+        or os.getenv("BIGMODEL_API_KEY")
+        or os.getenv("GLM_API_KEY")
+    )
+    if not token:
+        raise ValueError(
+            "ZHIPU_API_KEY 未设置。\n"
+            "请前往 https://open.bigmodel.cn 注册获取 API Key，\n"
+            "然后添加到 .env 文件: ZHIPU_API_KEY=your_key_here"
+        )
+    return token
+
+
+def get_tongyi_api_key() -> str:
+    token = (
+        os.getenv("DASHSCOPE_API_KEY")
+        or os.getenv("TONGYI_API_KEY")
+        or os.getenv("WANX_API_KEY")
+    )
+    if not token:
+        raise ValueError(
+            "DASHSCOPE_API_KEY 未设置。\n"
+            "请前往阿里云百炼 / DashScope 注册获取 API Key，\n"
+            "然后添加到 .env 文件: DASHSCOPE_API_KEY=your_key_here"
         )
     return token
 

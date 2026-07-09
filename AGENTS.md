@@ -2,9 +2,9 @@
 
 ## 项目概述
 
-AI 驱动的单幅白描连环画自动生成系统。每次生成执行 5 重随机（题材板块→出处书目→经典场景→画师风格→解说风格），经 LLM 生成故事 + 图像 prompt → RunningHub/Replicate 出图 → 后期宣纸纹理/做旧处理。
+AI 驱动的单幅白描连环画自动生成系统。每次生成执行 5 重随机（题材板块→出处书目→经典场景→画师风格→解说风格），经 LLM 生成故事 + 图像 prompt → RunningHub 出图 → 后期宣纸纹理/做旧处理。
 
-**核心管道**: `config.yaml` → `StoryGenerator` → `Narrator` → `PromptBuilder` → `ImageBackend` → `PostProcessor`
+**核心管道**: `config.yaml` → `StoryGenerator`(含ScenePlan) → `Narrator` → `PromptBuilder` → `ImageBackend` → `VisionQA` → `PostProcessor`
 
 ## 项目结构
 
@@ -20,11 +20,11 @@ src/
 ├── image_engine/
 │   ├── prompt_builder.py  # 白描 SD/FLUX prompt 构建 (中英双语)
 │   ├── backend.py         # ImageBackend 抽象接口
-│   ├── replicate_backend.py  # Replicate API 实现
 │   ├── runninghub_backend.py # RunningHub (runninghub.cn) 云端后端
 │   ├── comfy_backend.py   # ComfyUI 本地后端 (预留桩)
 │   ├── style_manager.py   # 21 画师查询
-│   └── post_process.py    # 宣纸纹理 + 泛黄做旧 + 双线边框
+│   ├── post_process.py    # 宣纸纹理 + 泛黄做旧 + 双线边框
+│   └── vision_qa.py       # LLM Vision 自动质检（彩色泄漏/现代元素/人体畸变）
 └── utils/
     └── random_utils.py    # weighted_choice
 ```
@@ -34,7 +34,8 @@ src/
 | 模型 | 位置 | 关键字段 |
 |------|------|----------|
 | ArtistStyle | models.py | 21 位枚举 + ARTIST_STYLE_DESCRIPTIONS |
-| StoryOutput | models.py | title/theme/theme_board/source_book/era/artist/narrator_style |
+| StoryOutput | models.py | title/theme/theme_board/source_book/era/artist/narrator_style + scene_plan |
+| ScenePlan | models.py | 8 维分镜：foreground/middle_ground/background/character_positions/actions/camera/composition/lighting |
 | HISTORY_BOARDS | generator.py | 9 板块 × 书目 × 示例场景 (83 个) |
 | HARRATOR_STYLES | prompts.py | 5 种 (林汉达/高阳/金庸/罗贯中/施耐庵) |
 
@@ -57,17 +58,33 @@ python -m src.main --batch 3 --theme three_kingdoms -o ./out  # 指定题材
 - 21 位枚举 `ArtistStyle`，无增减
 
 ### 后期处理管线
-灰度 → 增强对比 → 宣纸纤维噪点 → 泛黄映射 → 污渍 → 双线边框
+灰度 → 增强对比 → 宣纸纹理（真实扫描图/噪点回退）→ 泛黄映射 → 污渍 → 双线边框
 - `post_process.py` 中的 `aging_intensity` 控制做旧程度
+- `paper_texture_dir` 配置宣纸纹理目录，放入 `.jpg/.png` 扫描图后自动随机选取叠加
+- 目录为空时回退到随机噪点纹理
+
+### Vision QA 质检
+生成图像后自动调用 LLM Vision 进行质量检查（位于 `vision_qa.py`）：
+- **彩色泄漏检测**：检查是否含彩色（白描应为黑白）
+- **现代元素检测**：检查是否含现代服饰/建筑/物品
+- **人体畸变检测**：检查人物手部面部是否有明显扭曲
+- 未通过时跳过该图（不保存），不影响 batch 继续运行
+
+### Scene Planner 结构化场景规划
+LLM 生成故事时需同时输出 `scene_plan` JSON 子对象（位于 `StoryOutput.scene_plan`）：
+- 8 维分镜：前景/中景/背景/人物站位/动作/镜头/构图/光影
+- `PromptBuilder` 将 scene_plan 注入 image prompt，增强构图指导
+- `dry_run` 模式打印 Scene Plan 信息便于验证
 
 ### LLM provider 切换
 `config.yaml#llm.provider`: deepseek / kimi / minimax
 （对应 .env 中的 API Key 和环境变量命名）
 
 ### 图像后端切换
-`config.yaml#image.backend`: runninghub / replicate / zhipu / comfyui / dry_run
+`config.yaml#image.backend`: runninghub / replicate / zhipu / tongyi / comfyui / dry_run
 - **runninghub**（推荐）: 基于 AI App API，消费级 Key 可用，中文理解强
-- **replicate**: 备用后端，需 API Token（可能余额不足）
+- **zhipu**: CogView-4/GLM-Image，中文理解强
+- **tongyi**: 通义万相，阿里百炼
 - **comfyui**: 本地推理预留桩
 - **dry_run**: 仅生成文案和 Prompt，不出图
 
@@ -83,10 +100,11 @@ python -m src.main --batch 3 --theme three_kingdoms -o ./out  # 指定题材
 
 ```
 openai>=1.0          ← story_engine (DeepSeek/Kimi/MiniMax API)
-replicate>=0.25      ← replicate_backend (图像生成)
 Pillow>=10.0         ← post_process (宣纸/做旧)
 opencv-python        ← post_process (辅助)
 python-dotenv        ← config.py (.env 加载)
+requests>=2.31       ← runninghub_backend (RunningHub API)
+# replicate>=0.25    ← replicate_backend (备选，切换至 replicate 后端时需要)
 ```
 
 ## 已知注意事项
@@ -97,3 +115,6 @@ python-dotenv        ← config.py (.env 加载)
 - `comfy_backend.py` 是空壳桩，仅返回 error
 - `scripts/setup.sh` 创建 `venv` 并安装依赖，有 .env 不存在时从 `.env.example` 复制
 - Post-process 的 `_apply_paper_texture()` 使用 numpy 随机噪点，每次运行结果略有不同（期望行为）
+- `vision_qa.py` 复用 `config.py` 的 `get_llm_config()` 获取 provider 配置；API 调用失败时自动放行（返回 passed），不阻塞管线
+- `StoryOutput.scene_plan` 为可选字段（Optional[ScenePlan]），LLM 未输出时 `PromptBuilder` 使用通用 prompt 降级
+- 若在 `--dry-run` 模式下 Scene Plan 未打印，请检查 LLM 输出是否包含有效的 `scene_plan` JSON 子对象

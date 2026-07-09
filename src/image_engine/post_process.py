@@ -1,6 +1,8 @@
 """图像后期处理 — 宣纸纹理叠加、泛黄做旧、传统版式边框"""
 
-from typing import Optional
+import random
+from pathlib import Path
+from typing import List, Optional
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance
@@ -21,6 +23,11 @@ class PostProcessor:
         self.aging_enabled = self._get("post_process.aging_effect", True)
         self.aging_intensity = self._get("post_process.aging_intensity", 0.35)
         self.add_border = self._get("post_process.add_border", True)
+
+        paper_texture_dir = self._get("post_process.paper_texture_dir", "assets/paper_textures")
+        self.paper_texture_blend = self._get("post_process.paper_texture_blend", 0.15)
+        self.texture_paths: List[Path] = []
+        self._load_texture_files(paper_texture_dir)
 
     def _get(self, key: str, default):
         """从嵌套配置中取值"""
@@ -78,17 +85,42 @@ class PostProcessor:
         enhancer = ImageEnhance.Contrast(img)
         return enhancer.enhance(1.3)
 
+    def _load_texture_files(self, dir_path: str) -> None:
+        """扫描目录加载宣纸纹理文件"""
+        tex_dir = Path(dir_path)
+        if not tex_dir.exists():
+            self.texture_paths = []
+            return
+        self.texture_paths = sorted(
+            p for p in tex_dir.iterdir()
+            if p.suffix.lower() in (".jpg", ".jpeg", ".png")
+        )
+
+    def _load_texture(self, width: int, height: int) -> Optional[Image.Image]:
+        """随机加载一张宣纸纹理并缩放到目标尺寸"""
+        if not self.texture_paths:
+            return None
+        tex_path = random.choice(self.texture_paths)
+        tex = Image.open(tex_path).convert("L")
+        return tex.resize((width, height), Image.Resampling.LANCZOS)
+
     def _apply_paper_texture(self, img: Image.Image) -> Image.Image:
         """叠加宣纸纹理
 
-        生成轻微的颗粒噪点模拟宣纸纤维质感
+        优先使用真实宣纸扫描图，回退到随机颗粒噪点
         """
         width, height = img.size
 
-        # 生成随机宣纸纤维纹理
-        np_img = np.array(img, dtype=np.float32)
+        # 尝试用真实纹理
+        texture = self._load_texture(width, height)
+        if texture is not None:
+            np_img = np.array(img.convert("L"), dtype=np.float32)
+            np_tex = np.array(texture, dtype=np.float32)
+            blended = np_img * (1 - self.paper_texture_blend) + np_tex * self.paper_texture_blend
+            return Image.fromarray(np.clip(blended, 0, 255).astype(np.uint8))
 
-        # 轻微噪点模拟纸纤维
+        # 回退：随机噪点模拟宣纸
+        np_img = np.array(img, dtype=np.float32)
         noise = np.random.normal(0, 8, (height, width)).astype(np.float32)
         np_textured = np.clip(np_img + noise, 0, 255).astype(np.uint8)
 

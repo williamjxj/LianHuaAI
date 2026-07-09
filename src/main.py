@@ -8,6 +8,7 @@
     python -m src.main --batch 5          # 生成5幅
     python -m src.main --dry-run          # 测试运行（不调用API）
     python -m src.main --batch 3 --output ./my_outputs
+    python -m src.main --regen            # 从已有 metadata 重新生成图像
 """
 
 import argparse
@@ -19,7 +20,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import io
-import os
 
 from PIL import Image
 import requests
@@ -27,9 +27,9 @@ import requests
 from src.config import PROJECT_ROOT, load_config
 from src.image_engine.post_process import PostProcessor
 from src.image_engine.prompt_builder import build_image_prompt, build_negative_prompt
+from src.image_engine.vision_qa import VisionQA
 from src.story_engine.generator import HISTORY_BOARDS, StoryGenerator
 from src.story_engine.narrator import Narrator
-from src.story_engine.prompts import select_narrator_style
 
 # 确保 src 可导入
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -46,6 +46,7 @@ class ComicPipeline:
         self.story_generator = StoryGenerator(self.config)
         self.narrator = Narrator(self.config)
         self.post_processor = PostProcessor(self.config)
+        self.vision_qa = VisionQA(self.config)
 
         # 后端
         self.image_backend = None
@@ -166,7 +167,7 @@ class ComicPipeline:
 
         self._save_metadata(story.title, metadata)
 
-        print(f"\n✅ 完成！")
+        print("\n✅ 完成！")
         print(f"   图片：{result.get('image_path', result.get('image_url', 'N/A'))}")
         print(f"   元数据：{self.metadata_dir / f'{self._safe_filename(story.title)}.json'}")
 
@@ -213,7 +214,7 @@ class ComicPipeline:
         return result
 
     def _download_and_process(self, url: str, title: str) -> Optional[Path]:
-        """下载远程图片并应用后期处理
+        """下载远程图片并应用后期处理（不保存中间 raw 图）
 
         Args:
             url: 图片 URL
@@ -226,20 +227,20 @@ class ComicPipeline:
             resp = requests.get(url, timeout=60)
             resp.raise_for_status()
 
-            # 保存原始图片
             img = Image.open(io.BytesIO(resp.content))
             safe_name = self._safe_filename(title)
-            raw_path = self.image_dir / f"{safe_name}_raw.png"
-            img.save(raw_path)
 
-            # 后期处理
+            # Vision QA 质检
+            qa_result = self.vision_qa.check(img)
+            if not qa_result.passed:
+                print(f"   ❌ Vision QA 未通过: {'; '.join(qa_result.reasons)}")
+                return None
+
+            # 后期处理（不保存 raw 原始图）
             print("   🎨 应用后期处理（宣纸纹理 + 做旧 + 边框）...")
             processed = self.post_processor.process(img)
             final_path = self.image_dir / f"{safe_name}.png"
             processed.save(final_path, quality=95)
-
-            # 删除原始图（可选，保留可注释）
-            # raw_path.unlink()
 
             print(f"   💾 已保存: {final_path}")
             return final_path
@@ -258,11 +259,9 @@ class ComicPipeline:
 
     @staticmethod
     def _safe_filename(title: str) -> str:
-        """将标题转为安全文件名"""
+        """将标题转为安全文件名（不含时间戳）"""
         safe = "".join(c for c in title if c.isalnum() or c in " _-")
-        # 添加时间戳防重
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"{safe}_{ts}"
+        return safe.strip() or "untitled"
 
     def run_batch(
         self,
@@ -332,9 +331,76 @@ class ComicPipeline:
             print(f"  画师: {story.artist.value}")
             print(f"  解说风格: {story.narrator_style}")
             print(f"  场景: {story.scene_description[:150]}...")
+            if story.scene_plan:
+                sp = story.scene_plan
+                print(f"  Scene Plan: 前景={sp.foreground[:40]}... 中景={sp.middle_ground[:40]}...")
+                print(f"              构图={sp.composition}  镜头={sp.camera}  光影={sp.lighting}")
             print(f"\n  旁白: {story.narration}")
             print(f"\n  画师风格: {story.artist.value}")
             print(f"{'─' * 50}\n")
+
+    def regenerate_from_metadata(self):
+        """从已有 metadata JSON 文件批量重新生成图像"""
+        json_files = sorted(self.metadata_dir.glob("*.json"))
+        if not json_files:
+            print("没有找到 metadata JSON 文件。")
+            return
+
+        print(f"找到 {len(json_files)} 个 metadata 文件\n")
+
+        self._init_backend()
+        if self.image_backend is None:
+            print("错误: 当前后端不支持图像生成 (dry_run 模式无效)")
+            return
+
+        success = 0
+        for json_path in json_files:
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    metadata = json.load(f)
+
+                title = metadata.get("title", "untitled")
+                image_prompt = metadata.get("image_prompt", "")
+                negative_prompt = metadata.get("negative_prompt", "")
+
+                print(f"{'─' * 50}")
+                print(f"🖼️  {title}")
+
+                if not image_prompt:
+                    print("   ⚠️  metadata 中无 image_prompt，跳过")
+                    continue
+
+                print(f"   🖼️  使用 {self.image_backend.name()} 生成图像...")
+
+                img_cfg = self.config["image"]
+                backend_result = self.image_backend.generate(
+                    prompt=image_prompt,
+                    negative_prompt=negative_prompt,
+                    width=img_cfg.get("width", 768),
+                    height=img_cfg.get("height", 1024),
+                )
+
+                if not backend_result.success:
+                    print(f"   ❌ 图像生成失败: {backend_result.error}")
+                    continue
+
+                if backend_result.image_url:
+                    local_path = self._download_and_process(backend_result.image_url, title)
+                    if local_path:
+                        # 更新 metadata 中的路径
+                        metadata["image_path"] = str(local_path)
+                        metadata["image_url"] = backend_result.image_url
+                        metadata["generated_at"] = datetime.now().isoformat()
+                        self._save_metadata(title, metadata)
+                        success += 1
+
+            except Exception as e:
+                print(f"   ⚠️ 处理失败: {e}")
+                continue
+
+        print(f"\n{'=' * 50}")
+        print(f"✅ 完成: {success}/{len(json_files)} 图像已生成")
+        print(f"{'=' * 50}")
 
 
 def main():
@@ -348,6 +414,7 @@ def main():
             f"  python -m src.main --batch 3 --theme three_kingdoms  # 指定三国题材\n"
             f"  可选题材: {', '.join(HISTORY_BOARDS.keys())}\n"
             "  python -m src.main --batch 10 --delay 5   # 生成10幅，间隔5秒\n"
+            "  python -m src.main --regen                # 从已有 metadata 重新生成图像\n"
         ),
     )
     parser.add_argument(
@@ -386,6 +453,11 @@ choices=list(HISTORY_BOARDS.keys()),
         default=None,
         help="配置文件路径 (默认: ./config.yaml)",
     )
+    parser.add_argument(
+        "--regen",
+        action="store_true",
+        help="从已有 metadata JSON 重新生成图像（不重新生成故事/Prompt）",
+    )
 
     args = parser.parse_args()
 
@@ -406,7 +478,12 @@ choices=list(HISTORY_BOARDS.keys()),
         pipeline.dry_run(count=args.batch)
         return
 
-    print(f"🎨 中国传统白描连环画生成器")
+    if args.regen:
+        print("♻️  从已有 metadata 重新生成图像\n")
+        pipeline.regenerate_from_metadata()
+        return
+
+    print("🎨 中国传统白描连环画生成器")
     print(f"   图像后端: {pipeline.config['image'].get('backend', '未配置')}")
     print(f"   LLM: {pipeline.config['llm'].get('provider', '未配置')}")
     print(f"   输出目录: {pipeline.image_dir.parent}\n")

@@ -118,6 +118,28 @@ def build_image_prompt(
         BASE_STYLE_PROMPT,
     ]
 
+    # Scene plan (if available)
+    if story.scene_plan:
+        sp = story.scene_plan
+        scene_plan_parts = []
+        if sp.foreground:
+            scene_plan_parts.append(f"Foreground: {sp.foreground}")
+        if sp.middle_ground:
+            scene_plan_parts.append(f"Middle ground: {sp.middle_ground}")
+        if sp.background:
+            scene_plan_parts.append(f"Background: {sp.background}")
+        if sp.character_positions:
+            scene_plan_parts.append(f"Character layout: {sp.character_positions}")
+        if sp.actions:
+            scene_plan_parts.append(f"Actions: {sp.actions}")
+        if sp.camera:
+            scene_plan_parts.append(f"Camera: {sp.camera}")
+        if sp.composition:
+            scene_plan_parts.append(f"Composition: {sp.composition}")
+        if sp.lighting:
+            scene_plan_parts.append(f"Lighting: {sp.lighting}")
+        parts.append("Scene composition: " + ", ".join(scene_plan_parts))
+
     return ". ".join(parts)
 
 

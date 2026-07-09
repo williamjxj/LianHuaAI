@@ -31,3 +31,4 @@ assets/workflows/*.json
 # 文档设计稿
 docs/*.html
 .omo/
+assets/

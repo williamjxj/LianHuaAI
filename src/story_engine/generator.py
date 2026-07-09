@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from openai import OpenAI
 
 from src.config import get_llm_config
-from src.models import ArtistStyle, StoryOutput
+from src.models import ArtistStyle, ScenePlan, StoryOutput
 from src.story_engine.prompts import (
     STORY_SYSTEM_PROMPT,
     NARRATOR_STYLE_KEYS,
@@ -270,6 +270,10 @@ class StoryGenerator:
         raw = self._call_llm(STORY_SYSTEM_PROMPT, user_prompt)
         data = self._parse_story_json(raw)
 
+        # Parse scene_plan if present
+        scene_plan_data = data.get("scene_plan")
+        scene_plan = ScenePlan(**scene_plan_data) if isinstance(scene_plan_data, dict) else None
+
         artist = self.select_artist()
 
         topic_key = data.get("title", "")
@@ -288,6 +292,7 @@ class StoryGenerator:
             historical_note=data.get("historical_note", ""),
             characters=data.get("characters", []),
             artist=artist,
+            scene_plan=scene_plan,
             narrator_style=narrator_style,
         )
 
@@ -317,5 +322,15 @@ class StoryGenerator:
             ),
             characters=["关羽", "曹操", "袁术", "华雄"],
             artist=artist,
+            scene_plan=ScenePlan(
+                foreground="关羽横刀立马，青龙偃月刀寒光逼人",
+                middle_ground="帐前空地上，倒着华雄的首级",
+                background="中军大帐，众诸侯列坐",
+                character_positions="关羽居中立马，曹操端坐帐中主位，众诸侯分列两侧",
+                actions="关羽提刀立马，曹操举杯",
+                camera="中景平视",
+                composition="中心构图，关羽位于画面中央",
+                lighting="帐外自然昼光",
+            ),
             narrator_style=narrator_style,
         )

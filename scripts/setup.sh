@@ -62,11 +62,12 @@ if [ -f "$ENV_FILE" ]; then
         echo "   ⚠️  DEEPSEEK_API_KEY 未配置"
     fi
 
-    if [ -n "${REPLICATE_API_TOKEN:-}" ]; then
-        echo "   ✓ REPLICATE_API_TOKEN 已配置"
+    if [ -n "${RUNNINGHUB_API_KEY:-}" ]; then
+        echo "   ✓ RUNNINGHUB_API_KEY 已配置 (默认图像后端)"
     else
-        echo "   ⚠️  REPLICATE_API_TOKEN 未配置 (图像生成需要)"
-        echo "     请前往 https://replicate.com 注册获取 Token"
+        echo "   ⚠️  RUNNINGHUB_API_KEY 未配置"
+        echo "     请前往 https://www.runninghub.cn 注册获取 Key"
+        echo "     (默认后端；也可配置 REPLICATE_API_TOKEN 作为备选)"
     fi
 else
     echo "   ⚠️  .env 文件不存在"
@@ -87,6 +88,6 @@ echo ""
 echo "使用方法:"
 echo "  cd $PROJECT_DIR"
 echo "  source venv/bin/activate"
-echo "  python -m src.main --dry-run      # 测试运行"
-echo "  python -m src.main --batch 5      # 生成5幅"
+echo "  python -m src.main --dry-run              # 测试运行"
+echo "  python -m src.main --batch 5              # 生成5幅（默认 RunningHub 出图）"
 echo "============================================"

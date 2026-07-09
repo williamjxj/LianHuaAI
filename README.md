@@ -6,10 +6,10 @@
 
 ```
 随机种子 → 选题材 → 选出处 → 选场景 → 选画师 → 选解说风格
-     → 生成故事 → 构建Prompt → 生成图像 → 后期处理 → 输出
+     → 生成故事(含ScenePlan) → 构建Prompt → 生成图像 → Vision QA质检 → 后期处理 → 输出
 ```
 
-每次生成是 **5 重随机** 的排列组合：题材板块、出处书目、经典场景、画师风格、解说风格，保证每幅作品的独特性。
+每次生成是 **6 重随机** 的排列组合：题材板块、出处书目、经典场景、画师风格、解说风格 + 结构化场景规划(Scene Plan)指导构图，保证每幅作品的独特性和高质量。
 
 ---
 
@@ -32,7 +32,9 @@ src/
 │   ├── runninghub_backend.py  # RunningHub (runninghub.cn) 云端后端
 │   ├── comfy_backend.py       # ComfyUI 本地后端 (预留)
 │   ├── style_manager.py       # 21位画师风格管理
-│   └── post_process.py        # 宣纸纹理 + 泛黄做旧 + 传统边框
+│   ├── post_process.py        # 宣纸纹理 + 泛黄做旧 + 传统边框
+│   ├── vision_qa.py           # LLM Vision 自动质检（彩色泄漏/现代元素/人体畸变）
+│   └── tongyi_backend.py      # 通义万相图像生成后端
 └── utils/
     └── random_utils.py        # 加权随机选择工具
 ```
@@ -78,7 +80,7 @@ src/
 
 - **画种**：传统白描（baimiao）墨线稿
 - **纸张**：宣纸质感，泛黄做旧
-- **构图**：竖幅传统连环画开本
+- **构图**：横屏 16:9 传统连环画开本
 - **线条**：均匀排线，墨分五色
 - **版式**：经典连环画双线边框
 
@@ -130,9 +132,18 @@ python -m src.main --batch 10 --delay 3 -o ./works   # 间隔 3 秒，输出到 
 - `image.zhipu.model` — 智谱图像模型（默认 `auto`，由策略选择）
 - `image.zhipu.model_strategy` — 智谱模型策略（默认 `classic_comic_first`）
 - `image.tongyi.model` — 通义万相模型（默认 `wan2.7-image-pro`）
+- `image.vision_qa.enabled` — 是否启用 Vision QA 质检（默认 true）
+- `image.vision_qa.provider` — Vision QA 使用的 LLM（默认 reuse llm.provider）
+- `image.post_process.paper_texture_dir` — 宣纸纹理扫描图目录（默认 `assets/paper_textures/`）
+- `image.post_process.paper_texture_blend` — 纹理混合强度（默认 0.15）
 - `story.themes` — 各板块权重
 - `story.narrator_style` — 解说风格（random 则每轮随机抽取）
-- `image.post_process` — 宣纸纹理、做旧强度、边框开关
+- `image.post_process.paper_texture` — 宣纸纹理开关（默认 true）
+- `image.post_process.paper_texture_dir` — 纹理扫描图目录（默认 `assets/paper_textures/`）
+- `image.post_process.paper_texture_blend` — 纹理混合强度（默认 0.15）
+- `image.post_process.aging_effect` — 做旧效果开关
+- `image.post_process.aging_intensity` — 做旧强度（0-1）
+- `image.post_process.add_border` — 双线边框开关
 
 ## 输出结构
 
@@ -224,7 +235,38 @@ DASHSCOPE_API_KEY=your_key_here
 
 ## 后期处理管线
 
-1. 转灰度 →  2. 增强对比 →  3. 宣纸纤维纹理叠加 →  4. 泛黄做旧映射 →  5. 传统双线边框 →  6. 输出
+1. 转灰度 → 2. 增强对比 → 3. 宣纸纹理叠加（优先使用 `assets/paper_textures/` 中的真实扫描图，目录为空时回退随机噪点）→ 4. 泛黄做旧映射 → 5. 污渍效果 → 6. 传统双线边框 → 7. 输出
+
+## Vision QA 自动质检
+
+生成图像后自动调用 LLM Vision 进行质量检查，确保输出符合白描标准：
+
+- **彩色泄漏检测** — 检查是否含有彩色（白描应为纯黑白）
+- **现代元素检测** — 检查是否出现现代服饰、建筑或物品
+- **人体畸变检测** — 检查人物手部、面部是否有明显扭曲变形
+
+质检未通过的图像会被自动跳过（不保存），不影响 batch 中后续图像的生成。API 调用失败时自动放行，确保管线不因网络问题中断。
+
+`config.yaml` 中 `image.vision_qa.enabled` 可关闭此功能。
+
+## Scene Planner 结构化场景规划
+
+LLM 生成故事时同步输出 **Scene Plan** 子对象，对画面进行完整分镜规划：
+
+| 维度 | 说明 |
+|------|------|
+| **前景** (foreground) | 画面最前方的主体元素 |
+| **中景** (middle_ground) | 承前启后的叙事主体 |
+| **背景** (background) | 时代环境与氛围 |
+| **人物站位** (character_positions) | 人物的位置与朝向关系 |
+| **动作** (actions) | 关键动态瞬间 |
+| **镜头** (camera) | 景别选择（特写/中景/全景/鸟瞰）|
+| **构图** (composition) | 画面结构（中心/三角/对角线/留白）|
+| **光影** (lighting) | 光源方向与明暗基调 |
+
+该场景规划会被注入图像 Prompt，有效弥补通用文生图模型在构图控制上的不足。
+
+在 `--dry-run` 模式下会打印 Scene Plan 信息，方便验证合理性。
 
 ## 项目文件结构（完整）
 
@@ -258,7 +300,8 @@ comic/
 │   │   ├── runninghub_backend.py
 │   │   ├── comfy_backend.py
 │   │   ├── style_manager.py
-│   │   └── post_process.py
+│   │   ├── post_process.py
+│   │   └── vision_qa.py
 │   └── utils/
 │       ├── __init__.py
 │       └── random_utils.py

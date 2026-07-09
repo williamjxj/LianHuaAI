@@ -12,7 +12,10 @@ opencv-python>=4.8
 numpy>=1.24
 
 # ─── 图像生成后端 ──────────────────────────
-replicate>=0.25        # Replicate API
+# replicate>=0.25        # Replicate API
 
 # ─── 可选: 进度显示 ────────────────────────
 tqdm>=4.65
+
+# ─── 素材爬取 ─────────────────────────────
+ddgs>=6.0              # DuckDuckGo 图片搜索（无 API Key）

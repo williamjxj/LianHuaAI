@@ -222,11 +222,13 @@ class StoryGenerator:
         return response.choices[0].message.content.strip()
 
     def _parse_story_json(self, raw: str) -> Dict[str, Any]:
+        # 尝试直接解析
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
             pass
 
+        # 尝试从 markdown 代码块中提取
         json_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
         if json_match:
             try:
@@ -234,17 +236,31 @@ class StoryGenerator:
             except json.JSONDecodeError:
                 pass
 
+        # 尝试提取第一个 {…} 结构（可能前面有文字说明）
         brace_match = re.search(r"\{[\s\S]*\}", raw)
         if brace_match:
+            candidate = brace_match.group()
             try:
-                return json.loads(brace_match.group())
+                return json.loads(candidate)
             except json.JSONDecodeError:
                 pass
+
+        # 尝试逐行查找 "{" 之后的内容（兼容 LLM 先发文字再发 JSON 的情况）
+        lines = raw.strip().split("\n")
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped.startswith("{"):
+                candidate = "\n".join(lines[i:])
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    pass
+                break
 
         raise ValueError(f"Cannot parse LLM JSON response:\n{raw[:500]}")
 
     def generate_story(self, custom_theme: Optional[str] = None) -> StoryOutput:
-        """生成一个完整的历史故事"""
+        """生成一个完整的历史故事（失败时自动重试 3 次）"""
         if custom_theme and custom_theme in HISTORY_BOARDS:
             board_key = custom_theme
             board_info = HISTORY_BOARDS[board_key]
@@ -255,29 +271,48 @@ class StoryGenerator:
 
         era_hint = random.choice(board_info["eras"])
 
-        # 选择旁白风格
-        narrator_style = select_narrator_style()
+        max_retries = 3
+        last_error = None
 
-        user_prompt = build_story_prompt(
-            theme=board_info["name"],
-            source_book=book,
-            era_hint=era_hint,
-            example_title=ex_title,
-            example_scene=ex_scene,
-            narrator_style=narrator_style,
-        )
+        for attempt in range(1, max_retries + 1):
+            try:
+                # 每次重试重新选旁白风格和画师，增加变化
+                narrator_style = select_narrator_style()
 
-        raw = self._call_llm(STORY_SYSTEM_PROMPT, user_prompt)
-        data = self._parse_story_json(raw)
+                user_prompt = build_story_prompt(
+                    theme=board_info["name"],
+                    source_book=book,
+                    era_hint=era_hint,
+                    example_title=ex_title,
+                    example_scene=ex_scene,
+                    narrator_style=narrator_style,
+                )
 
-        # Parse scene_plan if present
-        scene_plan_data = data.get("scene_plan")
-        scene_plan = ScenePlan(**scene_plan_data) if isinstance(scene_plan_data, dict) else None
+                raw = self._call_llm(STORY_SYSTEM_PROMPT, user_prompt)
+                data = self._parse_story_json(raw)
 
-        artist = self.select_artist()
+                # Parse scene_plan if present
+                scene_plan_data = data.get("scene_plan")
+                scene_plan = ScenePlan(**scene_plan_data) if isinstance(scene_plan_data, dict) else None
 
-        topic_key = data.get("title", "")
-        self.recent_topics.append(topic_key)
+                artist = self.select_artist()
+
+                topic_key = data.get("title", "")
+                self.recent_topics.append(topic_key)
+
+                # 成功则跳出重试循环
+                break
+
+            except (ValueError, json.JSONDecodeError, KeyError, TypeError) as e:
+                last_error = e
+                if attempt < max_retries:
+                    print(f"   ⚠️ JSON 解析失败 (尝试 {attempt}/{max_retries})，重新生成...")
+                else:
+                    raise ValueError(
+                        f"LLM 返回无效 JSON (重试 {max_retries} 次均失败):\n{last_error}"
+                    )
+
+        # ─── 以下代码原在循环外，现在按需提取 ───
         if len(self.recent_topics) > self.avoid_recent:
             self.recent_topics.pop(0)
 

@@ -13,6 +13,7 @@
 
 import argparse
 import json
+import random
 import sys
 import time
 from datetime import datetime
@@ -96,6 +97,37 @@ class ComicPipeline:
                 f"不支持的图像后端: {backend_type}，可选: replicate, comfyui, runninghub, zhipu, tongyi, minimax, dry_run"
             )
 
+    def _select_canvas(self) -> tuple:
+        """选择随机画幅：先选比例预设，再随机缩放宽度
+
+        Returns:
+            (target_w, target_h, canvas_name)
+        """
+        img_cfg = self.config["image"]
+        presets = img_cfg.get("canvas_presets", [{"name": "4:3", "width": 768, "height": 576}])
+        canvas_select = img_cfg.get("canvas_select", "random")
+
+        if canvas_select == "random":
+            preset = random.choice(presets)
+        else:
+            matched = [p for p in presets if p.get("name", "").startswith(canvas_select)]
+            preset = matched[0] if matched else presets[0]
+
+        base_w, base_h = preset["width"], preset["height"]
+        preset_name = preset.get("name", f"{base_w}x{base_h}")
+
+        # 宽度随机缩放
+        regen_widths = img_cfg.get("regen_widths", [base_w])
+        target_w = random.choice(regen_widths)
+
+        # 按比例计算高度
+        aspect = base_w / base_h
+        target_h = int(round(target_w / aspect))
+        if target_h % 2 != 0:
+            target_h += 1
+
+        return target_w, target_h, preset_name
+
     def generate_one(self, custom_theme: Optional[str] = None) -> dict:
         """生成一幅完整的连环画（故事 + 画面提示词 + 图片 + 旁白）
 
@@ -133,9 +165,13 @@ class ComicPipeline:
         # 更新旁白
         story.narration = narration
 
+        # 选择随机画幅（比例 + 宽度随机化）
+        target_w, target_h, aspect_ratio_name = self._select_canvas()
+        print(f"   📐 画幅: {aspect_ratio_name} ({target_w}x{target_h})")
+
         # Step 3: 构建图像 prompt
         print("🎨 [3/4] 构建图像提示词...")
-        image_prompt = build_image_prompt(story)
+        image_prompt = build_image_prompt(story, aspect_ratio=aspect_ratio_name.split(" ")[0])
         negative_prompt = build_negative_prompt()
 
         story_cfg = self.config.get("story", {})
@@ -144,7 +180,7 @@ class ComicPipeline:
         narration_max = story_cfg.get("narration_max_chars", 150)
 
         # Step 4: 生成图像
-        result = self._generate_image(image_prompt, negative_prompt, story)
+        result = self._generate_image(image_prompt, negative_prompt, story, target_w, target_h)
 
         # 保存元数据
         metadata = {
@@ -162,6 +198,8 @@ class ComicPipeline:
             "negative_prompt": negative_prompt,
             "narration_style": narration_cfg,
             "narration_chars": f"{narration_min}-{narration_max}",
+            "canvas": f"{target_w}x{target_h}",
+            "canvas_name": aspect_ratio_name,
             "generated_at": datetime.now().isoformat(),
             "image_path": result.get("image_path"),
             "image_url": result.get("image_url"),
@@ -182,6 +220,8 @@ class ComicPipeline:
         prompt: str,
         negative_prompt: str,
         story,
+        target_w: int = 768,
+        target_h: int = 576,
     ) -> dict:
         """生成图像"""
         result = {"image_path": None, "image_url": None, "error": None}
@@ -200,8 +240,8 @@ class ComicPipeline:
         backend_result = self.image_backend.generate(
             prompt=prompt,
             negative_prompt=negative_prompt,
-            width=img_cfg.get("width", 768),
-            height=img_cfg.get("height", 1024),
+            width=target_w,
+            height=target_h,
         )
 
         if not backend_result.success:
@@ -212,17 +252,19 @@ class ComicPipeline:
         # 下载并保存本地
         if backend_result.image_url:
             result["image_url"] = backend_result.image_url
-            local_path = self._download_and_process(backend_result.image_url, story.title)
+            local_path = self._download_and_process(backend_result.image_url, story.title, story.narration, story.source_book, target_w, target_h)
             result["image_path"] = str(local_path) if local_path else None
 
         return result
 
-    def _download_and_process(self, url: str, title: str) -> Optional[Path]:
+    def _download_and_process(self, url: str, title: str, narration: str = "", source_book: str = "", target_w: int = 768, target_h: int = 576) -> Optional[Path]:
         """下载远程图片并应用后期处理（不保存中间 raw 图）
 
         Args:
             url: 图片 URL
             title: 故事标题
+            target_w: 目标画幅宽度
+            target_h: 目标画幅高度
 
         Returns:
             本地保存路径
@@ -234,15 +276,19 @@ class ComicPipeline:
             img = Image.open(io.BytesIO(resp.content))
             safe_name = self._safe_filename(title)
 
+            # 强制统一到目标画幅（center-crop + resize）
+            if img.size != (target_w, target_h):
+                img = self._fit_canvas(img, target_w, target_h)
+
             # Vision QA 质检
             qa_result = self.vision_qa.check(img)
             if not qa_result.passed:
                 print(f"   ❌ Vision QA 未通过: {'; '.join(qa_result.reasons)}")
                 return None
 
-            # 后期处理（标题题字 + 宣纸纹理 + 做旧 + 边框）
-            print("   🎨 应用后期处理（连环画标题 + 宣纸纹理 + 做旧 + 边框）...")
-            processed = self.post_processor.process(img, title=title)
+            # 后期处理（标题题字 + 旁白解说 + 宣纸纹理 + 做旧 + 边框）
+            print("   🎨 应用后期处理（连环画标题 + 旁白解说 + 宣纸纹理 + 做旧 + 边框）...")
+            processed = self.post_processor.process(img, title=title, narration=narration, source_book=source_book)
             final_path = self.image_dir / f"{safe_name}.png"
             processed.save(final_path, quality=95)
 
@@ -252,6 +298,32 @@ class ComicPipeline:
         except Exception as e:
             print(f"   ⚠️ 图片处理失败: {e}")
             return None
+
+    @staticmethod
+    def _fit_canvas(image: Image.Image, target_w: int, target_h: int) -> Image.Image:
+        """将图片强制适配到目标画幅（center-crop + resize），不拉伸变形"""
+        src_w, src_h = image.size
+        target_ratio = target_w / target_h
+        src_ratio = src_w / src_h
+
+        if abs(src_ratio - target_ratio) < 0.01:
+            # 比例已接近，直接 resize
+            return image.resize((target_w, target_h), Image.Resampling.LANCZOS)
+
+        # 先 center-crop 到目标比例，再 resize
+        if src_ratio > target_ratio:
+            # 源图更宽 → crop 宽度
+            new_w = int(src_h * target_ratio)
+            new_h = src_h
+        else:
+            # 源图更高 → crop 高度
+            new_w = src_w
+            new_h = int(src_w / target_ratio)
+
+        left = (src_w - new_w) // 2
+        top = (src_h - new_h) // 2
+        cropped = image.crop((left, top, left + new_w, top + new_h))
+        return cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
 
     def _save_metadata(self, title: str, metadata: dict) -> Path:
         """保存元数据 JSON"""
@@ -328,6 +400,9 @@ class ComicPipeline:
             print(f"  Dry Run #{i + 1}")
             print(f"{'─' * 50}")
 
+            # 随机选画幅（比例 + 宽度随机化）
+            target_w, target_h, aspect_ratio_name = self._select_canvas()
+
             # 随机选题
             story = self.story_generator.dry_run()
             print(f"  标题: {story.title}")
@@ -336,6 +411,7 @@ class ComicPipeline:
             print(f"  时代: {story.era}")
             print(f"  画师: {story.artist.value}")
             print(f"  解说风格: {story.narrator_style}")
+            print(f"  画幅: {aspect_ratio_name} ({target_w}x{target_h})")
             print(f"  场景: {story.scene_description[:150]}...")
             if story.scene_plan:
                 sp = story.scene_plan
@@ -346,18 +422,35 @@ class ComicPipeline:
             print(f"{'─' * 50}\n")
 
     def regenerate_from_metadata(self):
-        """从已有 metadata JSON 文件批量重新生成图像"""
+        """从已有 metadata JSON 文件批量重新生成图像
+
+        执行流程：
+        1. 遍历 outputs/metadata/ 下所有 JSON
+        2. 重新生成精简旁白 (30-80 字) via LLM
+        3. 注入 "中国古典连环画风格，三国演义连环画风格" 到 prompt
+        4. 随机选画幅，用 runninghub 重新出图
+        5. 后期处理 + 紧凑底部解说条
+        6. 保存到 outputs/works/ 目录
+        """
         json_files = sorted(self.metadata_dir.glob("*.json"))
         if not json_files:
             print("没有找到 metadata JSON 文件。")
             return
 
-        print(f"找到 {len(json_files)} 个 metadata 文件\n")
+        print(f"📂 找到 {len(json_files)} 个 metadata 文件\n")
 
+        # 强制使用 runninghub 后端
+        self.config["image"]["backend"] = "runninghub"
         self._init_backend()
         if self.image_backend is None:
-            print("错误: 当前后端不支持图像生成 (dry_run 模式无效)")
+            print("错误: 无法初始化 runninghub 后端")
             return
+
+        # 创建 outputs/works/ 目录
+        output_base = Path(self.config.get("output_dir", str(PROJECT_ROOT / "outputs")))
+        works_dir = output_base / "works"
+        works_dir.mkdir(parents=True, exist_ok=True)
+        print(f"📁 输出目录: {works_dir}\n")
 
         success = 0
         for json_path in json_files:
@@ -366,8 +459,12 @@ class ComicPipeline:
                     metadata = json.load(f)
 
                 title = metadata.get("title", "untitled")
+                scene_description = metadata.get("scene_description", "")
                 image_prompt = metadata.get("image_prompt", "")
                 negative_prompt = metadata.get("negative_prompt", "")
+                source_book = metadata.get("source_book", "")
+                narration_style = metadata.get("narration_style", "林汉达")
+                theme = metadata.get("theme", "")
 
                 print(f"{'─' * 50}")
                 print(f"🖼️  {title}")
@@ -376,36 +473,98 @@ class ComicPipeline:
                     print("   ⚠️  metadata 中无 image_prompt，跳过")
                     continue
 
-                print(f"   🖼️  使用 {self.image_backend.name()} 生成图像...")
+                # ── Step 1: 重新生成精简旁白 (30-80字) ──
+                print("   📝 重新生成精简旁白...")
+                narration = self.narrator.generate(
+                    scene_description=scene_description,
+                    style=narration_style,
+                    min_chars=self.config["story"].get("narration_min_chars", 30),
+                    max_chars=self.config["story"].get("narration_max_chars", 80),
+                    theme=theme,
+                )
+                print(f"   旁白 ({narration_style}): {narration[:80]}")
 
-                img_cfg = self.config["image"]
+                # ── Step 2: 注入古典连环画风格到 prompt ──
+                style_injection = "中国古典连环画风格，三国演义连环画风格"
+                modified_prompt = f"{style_injection}。\n\n{image_prompt}"
+                print(f"   ✨ 已注入风格: {style_injection}")
+
+                # ── Step 3: 随机选画幅（比例 + 宽度随机化）──
+                target_w, target_h, canvas_name = self._select_canvas()
+                print(f"   📐 画幅: {canvas_name} ({target_w}x{target_h})")
+
+                # ── Step 4: 生成图像 ──
+                print(f"   🖼️  使用 {self.image_backend.name()} 生成图像...")
                 backend_result = self.image_backend.generate(
-                    prompt=image_prompt,
+                    prompt=modified_prompt,
                     negative_prompt=negative_prompt,
-                    width=img_cfg.get("width", 768),
-                    height=img_cfg.get("height", 1024),
+                    width=target_w,
+                    height=target_h,
                 )
 
                 if not backend_result.success:
                     print(f"   ❌ 图像生成失败: {backend_result.error}")
                     continue
 
+                # ── Step 5: 下载 + 裁切 + 后期处理 + 保存到 works ──
                 if backend_result.image_url:
-                    local_path = self._download_and_process(backend_result.image_url, title)
-                    if local_path:
-                        # 更新 metadata 中的路径
-                        metadata["image_path"] = str(local_path)
+                    try:
+                        resp = requests.get(backend_result.image_url, timeout=60)
+                        resp.raise_for_status()
+
+                        img = Image.open(io.BytesIO(resp.content))
+                        safe_name = self._safe_filename(title)
+
+                        # 强制统一到目标画幅
+                        if img.size != (target_w, target_h):
+                            img = self._fit_canvas(img, target_w, target_h)
+
+                        # Vision QA 质检
+                        qa_result = self.vision_qa.check(img)
+                        if not qa_result.passed:
+                            print(f"   ❌ Vision QA 未通过: {'; '.join(qa_result.reasons)}")
+                            continue
+
+                        # 后期处理
+                        print("   🎨 应用后期处理（宣纸纹理 + 做旧 + 解说条 + 边框）...")
+                        processed = self.post_processor.process(
+                            img,
+                            title=title,
+                            narration=narration,
+                            source_book=source_book,
+                        )
+                        final_path = works_dir / f"{safe_name}.png"
+                        processed.save(final_path, quality=95)
+                        print(f"   💾 已保存: {final_path}")
+
+                        # 更新 metadata 并保存到 works 侧
+                        metadata["image_path"] = str(final_path)
                         metadata["image_url"] = backend_result.image_url
+                        metadata["narration"] = narration
+                        metadata["image_prompt"] = modified_prompt
+                        metadata["canvas"] = f"{target_w}x{target_h}"
+                        metadata["canvas_name"] = canvas_name
                         metadata["generated_at"] = datetime.now().isoformat()
-                        self._save_metadata(title, metadata)
+                        metadata["regen_note"] = "重新生成: 精简旁白 + 古典连环画风格注入"
+
+                        # 保存更新后的 metadata 到 works 目录
+                        meta_path = works_dir / f"{safe_name}.json"
+                        with open(meta_path, "w", encoding="utf-8") as f:
+                            json.dump(metadata, f, ensure_ascii=False, indent=2)
+
                         success += 1
+                        print(f"   ✅ 成功 ({success})")
+
+                    except Exception as e:
+                        print(f"   ⚠️ 图片处理失败: {e}")
+                        continue
 
             except Exception as e:
-                print(f"   ⚠️ 处理失败: {e}")
+                print(f"   ⚠️ 处理 {json_path.name} 失败: {e}")
                 continue
 
         print(f"\n{'=' * 50}")
-        print(f"✅ 完成: {success}/{len(json_files)} 图像已生成")
+        print(f"✅ 完成: {success}/{len(json_files)} 图像已生成到 {works_dir}")
         print(f"{'=' * 50}")
 
 

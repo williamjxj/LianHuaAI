@@ -2,6 +2,26 @@
 
 批量循环随机生成单幅中国传统白描连环画作品，配套一段简短历史故事解说文案。
 
+---
+
+## 🖼️ 作品展示 (Gallery)
+
+点击图片查看完整大图 · [浏览全部已生成作品 →](./outputs/images/)
+
+| 先秦·商鞅立木取信 | 三国·长坂坡单骑救主 |
+|:---:|:---:|
+| [![商鞅立木取信](./outputs/images/商鞅立木取信.png)](./outputs/images/商鞅立木取信.png) | [![长坂坡单骑救主](./outputs/images/长坂坡单骑救主_20260709_090355.png)](./outputs/images/长坂坡单骑救主_20260709_090355.png) |
+
+| 秦末·巨鹿破釜沉舟 | 明代·诚意伯登坛祈甘霖 |
+|:---:|:---:|
+| [![巨鹿破釜沉舟](./outputs/images/巨鹿破釜沉舟_20260713_162436.png)](./outputs/images/巨鹿破釜沉舟_20260713_162436.png) | [![诚意伯登坛祈甘霖](./outputs/images/诚意伯登坛祈甘霖.png)](./outputs/images/诚意伯登坛祈甘霖.png) |
+
+> 以上作品均为 AI 自动生成，经白描 Prompt 约束 + 后期做旧处理，呈现宣纸墨线效果。每幅作品包含完整的历史故事解说与结构化 Scene Plan 场景规划。
+>
+> 📂 所有已生成作品可在 [`outputs/images/`](./outputs/images/) 目录查看，对应的元数据（画师、解说词、Prompt 等）在 [`outputs/metadata/`](./outputs/metadata/)。
+
+---
+
 ## 项目核心理念
 
 ```
@@ -9,7 +29,7 @@
      → 生成故事(含ScenePlan) → 构建Prompt → 生成图像 → Vision QA质检 → 后期处理 → 输出
 ```
 
-每次生成是 **6 重随机** 的排列组合：题材板块、出处书目、经典场景、画师风格、解说风格 + 结构化场景规划(Scene Plan)指导构图，保证每幅作品的独特性和高质量。
+每次生成是 **7 重随机** 的排列组合：题材板块、出处书目、经典场景、画师风格、解说风格、画幅比例、画幅宽度 + 结构化场景规划(Scene Plan)指导构图，保证每幅作品的独特性和高质量。
 
 ---
 
@@ -82,10 +102,9 @@ src/
 
 - **画种**：传统白描（baimiao）墨线稿
 - **纸张**：宣纸质感，泛黄做旧
-- **构图**：横屏 16:9（1024×576），传统连环画开本
 - **线条**：均匀排线，墨分五色
-- **版式**：经典连环画双线边框 + 顶部标题题字
-
+- **版式**：每次随机选取画幅比例（4:3/7:5/3:2/16:9/2:1）+ 随机宽度（768/896/1024/1152），高度按比例缩放
+- **解说条**：底部统一解说条（标题 + 旁白 + 出处，紧凑三行排版）+ 经典双线边框
 严格禁止：彩色、CG、二次元、厚涂油画、现代服饰、科幻元素、扭曲人体、模糊线条
 
 ## 环境要求
@@ -110,6 +129,9 @@ python -m src.main --dry-run
 python -m src.main --batch 5                    # 随机题材生成 5 幅
 python -m src.main --batch 3 --theme three_kingdoms  # 指定三国题材
 python -m src.main --batch 10 --delay 3 -o ./works   # 间隔 3 秒，输出到 ./works
+
+# 5. 从已有 metadata 重新生成图像（重新生成旁白 + 随机画幅出图）
+python -m src.main --regen
 ```
 
 ### 全部参数
@@ -117,6 +139,7 @@ python -m src.main --batch 10 --delay 3 -o ./works   # 间隔 3 秒，输出到 
 ```
 --batch, -b N      批量生成数量（默认 1）
 --dry-run          测试模式，不调用图像 API
+--regen            从已有 metadata JSON 重新生成图像（精简旁白 + 古典连环画风格 + 随机画幅）
 --theme, -t KEY    指定题材，可选: three_kingdoms, pre_qin, western_han, eastern_han,
                     sui_tang, song_dynasty, ming_founding, general_history, late_ming_qing
 --delay, -d SEC    每幅间隔秒数（默认 2）
@@ -130,6 +153,9 @@ python -m src.main --batch 10 --delay 3 -o ./works   # 间隔 3 秒，输出到 
 
 - `llm.provider` — 切换 LLM 后端（deepseek / kimi / minimax）
 - `image.backend` — 图像后端（runninghub / replicate / zhipu / tongyi / comfyui / dry_run）
+- `image.canvas_select` — 画幅选择策略（`random` 每次随机 / `4:3` 固定等）
+- `image.canvas_presets` — 画幅预设列表（含 4:3 / 7:5 / 3:2 / 16:9 / 2:1）
+- `image.regen_widths` — 宽度随机缩放基数 [768, 896, 1024, 1152]
 - `image.runninghub.model` — RunningHub 模型（默认 `rhart-image-g-2-official`）
 - `image.zhipu.model` — 智谱图像模型（默认 `auto`，由策略选择）
 - `image.zhipu.model_strategy` — 智谱模型策略（默认 `classic_comic_first`）
@@ -140,22 +166,29 @@ python -m src.main --batch 10 --delay 3 -o ./works   # 间隔 3 秒，输出到 
 - `image.post_process.paper_texture_blend` — 纹理混合强度（默认 0.15）
 - `story.themes` — 各板块权重
 - `story.narrator_style` — 解说风格（random 则每轮随机抽取）
+- `story.narration_min_chars` / `story.narration_max_chars` — 旁白字数限制（默认 30-80）
 - `image.post_process.paper_texture` — 宣纸纹理开关（默认 true）
 - `image.post_process.paper_texture_dir` — 纹理扫描图目录（默认 `assets/paper_textures/`）
 - `image.post_process.paper_texture_blend` — 纹理混合强度（默认 0.15）
 - `image.post_process.aging_effect` — 做旧效果开关
 - `image.post_process.aging_intensity` — 做旧强度（0-1）
+- `image.width` — 输出画幅宽度（默认 768，被 canvas_presets 覆盖）
+- `image.height` — 输出画幅高度（默认 576，被 canvas_presets 覆盖）
+- `image.post_process.add_narration` — 底部解说条开关（默认 true）
 - `image.post_process.add_border` — 双线边框开关
 
 ## 输出结构
 
 ```
 outputs/
-├── images/
+├── images/                        ← 📂 [浏览已生成图片](./outputs/images/)
 │   ├── 关羽温酒斩华雄_20260708_120000.png      # 处理后成品
 │   └── 关羽温酒斩华雄_20260708_120000_raw.png  # 原始下载图
-└── metadata/
-    └── 关羽温酒斩华雄_20260708_120000.json      # 生成元数据
+├── metadata/                      ← 📂 [浏览生成元数据](./outputs/metadata/)
+│   └── 关羽温酒斩华雄_20260708_120000.json      # 生成元数据
+└── works/                         ← 📂 `--regen` 模式输出目录
+    ├── 关羽温酒斩华雄.png                        # 重新生成的图像
+    └── 关羽温酒斩华雄.json                        # 更新后的元数据
 ```
 
 元数据包含：标题、板块、出处书目、时代、人物、画师、解说词、解说风格、完整 Prompt、生成时间等。
@@ -238,7 +271,7 @@ DASHSCOPE_API_KEY=your_key_here
 
 ## 后期处理管线
 
-1. 转灰度 → 2. 增强对比 → 3. 宣纸纹理叠加（优先使用 `assets/paper_textures/` 中的真实扫描图，目录为空时回退随机噪点）→ 4. 泛黄做旧映射 → 5. 污渍效果 → 6. 传统双线边框 → 7. 输出
+1. 转灰度 → 2. 增强对比 → 3. 宣纸纹理叠加（优先使用 `assets/paper_textures/` 中的真实扫描图，目录为空时回退随机噪点）→ 4. 泛黄做旧映射 → 5. 污渍效果 → 6. 底部解说条（标题 + 旁白 + 出处）→ 7. 输出
 
 ## Vision QA 自动质检
 
@@ -270,6 +303,17 @@ LLM 生成故事时同步输出 **Scene Plan** 子对象，对画面进行完整
 该场景规划会被注入图像 Prompt，有效弥补通用文生图模型在构图控制上的不足。
 
 在 `--dry-run` 模式下会打印 Scene Plan 信息，方便验证合理性。
+
+## JSON 解析容错
+
+LLM 返回的 JSON 可能格式异常，`StoryGenerator._parse_story_json()` 实现了 4 级回退解析：
+
+1. 直接 `json.loads` 解析
+2. 从 markdown 代码块 ` ```json ``` ` 提取
+3. 用正则 `{…}` 提取第一个 JSON 对象
+4. 逐行扫描查找首个 `{` 起始行
+
+全部失败时自动重试 3 次（每次重新选择解说风格，增加 LLM 输出变化概率），极大减少了因 JSON 格式问题导致生成中断的情况。
 
 ## 项目文件结构（完整）
 
@@ -310,7 +354,8 @@ comic/
 │       └── random_utils.py
 ├── outputs/
 │   ├── images/
-│   └── metadata/
+│   ├── metadata/
+│   └── works/
 ├── assets/
 │   └── paper_textures/
 └── docs/

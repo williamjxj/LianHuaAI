@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-AI 驱动的单幅白描连环画自动生成系统。每次生成执行 5 重随机（题材板块→出处书目→经典场景→画师风格→解说风格），经 LLM 生成故事 + 图像 prompt → RunningHub 出图 → 后期宣纸纹理/做旧处理。
+AI 驱动的单幅白描连环画自动生成系统。每次生成执行 5 重随机（题材板块→出处书目→经典场景→画师风格→解说风格）+ 2 重画幅随机（比例 + 宽度），经 LLM 生成故事 + 图像 prompt → RunningHub 出图 → 后期宣纸纹理/做旧处理。
 
 **核心管道**: `config.yaml` → `StoryGenerator`(含ScenePlan) → `Narrator` → `PromptBuilder` → `ImageBackend` → `VisionQA` → `PostProcessor`
 
@@ -14,7 +14,7 @@ src/
 ├── models.py              # StoryOutput / ArtistStyle(21枚举) / ScenePlan / 风格描述
 ├── main.py                # CLI 入口 + ComicPipeline 批量循环
 ├── story_engine/
-│   ├── generator.py       # 10大板块 + 83场景 + LLM 故事生成
+│   ├── generator.py       # 9 大板块 + 83 场景 + LLM 故事生成
 │   ├── narrator.py        # 旁白解说词独立生成
 │   └── prompts.py         # system prompt + 5种解说风格指南
 ├── image_engine/
@@ -49,23 +49,47 @@ src/
 python -m src.main --dry-run                 # 故事测试 (不出图)
 python -m src.main --batch 5                 # 批量生成
 python -m src.main --batch 3 --theme three_kingdoms --output ./out  # 指定题材
+python -m src.main --regen                   # 从已有 metadata 批量重新生成图像
 ```
 
 ## 关键约定
 
 ### 权重配置 (config.yaml)
-- `story.themes`: 10 大板块各 ~11.1%，总和 100%
+- `story.themes`: 9 大板块各 ~11.1%，总和 100%
 - `story.narrator_style: random` → 每轮从 5 种中随机抽取
+- `image.canvas_select: random` → 每次从 canvas_presets 中随机选一种画幅
+- `image.canvas_presets`: 5 种画幅（4:3/7:5/3:2/16:9/2:1），每次随机
+- `image.regen_widths`: [768, 896, 1024, 1152] — 随机缩放宽度，高度按比例计算
+- `image.post_process.add_narration`: 底部解说条开关（默认 true，控制标题+旁白+出处合并显示）
 
 ### 画师规则
 - 单人单幅：1 幅只固定 1 位画师风格
 - 21 位枚举 `ArtistStyle`，无增减
 
 ### 后期处理管线
-灰度 → 增强对比 → 宣纸纹理（真实扫描图/噪点回退）→ 泛黄映射 → 污渍 → 双线边框
+灰度 → 增强对比 → 宣纸纹理（真实扫描图/噪点回退）→ 泛黄映射 → 污渍 → 底部解说条（标题+旁白+出处）→ 双线边框
 - `post_process.py` 中的 `aging_intensity` 控制做旧程度
 - `paper_texture_dir` 配置宣纸纹理目录，放入 `.jpg/.png` 扫描图后自动随机选取叠加
 - 目录为空时回退到随机噪点纹理
+- `_add_bottom_info_bar()`: 统一底部解说条，3 行布局：标题（加粗大字号）、旁白（自动换行，最多2行，超长省略）、出处（右对齐小字，带 —— 前缀）。使用 `<Title> —— <Narration> —— <Source>` 三段式显示在仿古底色透明条中。旁白字体约 2.2% 高度（紧凑）
+
+### 画幅随机化
+每次生成从以下预设中随机选取一种画幅比例，再随机从 `regen_widths: [768, 896, 1024, 1152]` 中选宽度，高度按比例缩放，保证每次输出绝对尺寸不同：
+- 4:3 (768×576) — 经典传统
+- 7:5 (806×576) — 传统连环画常见比例
+- 3:2 (864×576) — 经典照片比例
+- 16:9 (1024×576) — 宽屏（原默认）
+- 2:1 (1152×576) — 超宽幅
+- 随机化示例：4:3 选中 width=1024 → 1024×768；16:9 选中 width=896 → 896×504
+- 强制适配：`_fit_canvas()` 通过 center-crop + resize 将后端返回的任意尺寸图像强制统一到目标画幅
+
+### JSON 解析容错
+`StoryGenerator._parse_story_json()` 在 LLM 返回格式异常时有 4 级回退解析：
+1. 直接 `json.loads`
+2. 从 markdown 代码块 ````json```` 提取
+3. 用正则 `{…}` 提取第一个 JSON 对象
+4. 逐行扫描查找首个 `{` 起始行
+全部失败时自动重试 3 次（每次重新选择解说风格，增加 Parser 原始输出变化概率）
 
 ### Vision QA 质检
 生成图像后自动调用 LLM Vision 进行质量检查（位于 `vision_qa.py`）：
@@ -91,8 +115,7 @@ LLM 生成故事时需同时输出 `scene_plan` JSON 子对象（位于 `StoryOu
 - **tongyi**: 通义万相 wan2.7，阿里百炼
 - **minimax**: MiniMax image-01 模型
 - **replicate**: 云端 SDXL/FLUX（需 API Token）
-- **comfyui**: 本地推理预留桩（仅返回 error）炼
-- **comfyui**: 本地推理预留桩
+- **comfyui**: 本地推理预留桩（仅返回 error）
 - **dry_run**: 仅生成文案和 Prompt，不出图
 
 ## 禁止项
@@ -120,6 +143,7 @@ requests>=2.31       ← runninghub_backend (RunningHub API)
 - `replicate_backend.py` 的 `model` 字段是 SDXL 默认值；换 FLUX 需改 `image.replicate.model`
 - `runninghub_backend.py` 基于 RunningHub AI App API（`POST /task/openapi/ai-app/run`），消费级-会员 Key 可用，但所有请求（含 status/outputs）均需传 `apiKey` 参数
 - `runninghub_backend.py` 的输出使用 `fileUrl`（驼峰）而非 `file_url`
+- `runninghub_backend.py` 的宽高比改用数学最近匹配：从预定义映射表中找最接近当前 w/h 的比例，兼容随机缩放宽度后的各种尺寸
 - `minimax_backend.py` 的 `generate()` 会对超长 prompt（>1400 字符）自动截断并打印日志
 - `comfy_backend.py` 是空壳桩，仅返回 error
 - `scripts/setup.sh` 创建 `venv` 并安装依赖，有 .env 不存在时从 `.env.example` 复制
@@ -128,3 +152,6 @@ requests>=2.31       ← runninghub_backend (RunningHub API)
 - `vision_qa.py` 复用 `config.py` 的 `get_llm_config()` 获取 provider 配置；API 调用失败时自动放行（返回 passed），不阻塞管线
 - `StoryOutput.scene_plan` 为可选字段（Optional[ScenePlan]），LLM 未输出时 `PromptBuilder` 使用通用 prompt 降级
 - 若在 `--dry-run` 模式下 Scene Plan 未打印，请检查 LLM 输出是否包含有效的 `scene_plan` JSON 子对象
+- `--regen` 模式：遍历 `outputs/metadata/` 下所有 JSON，重新生成精简旁白(30-80字)、注入"中国古典连环画风格，三国演义连环画风格"到 prompt，随机选画幅出图，保存到 `outputs/works/`。同时输出更新后的 metadata JSON 到 `outputs/works/`
+- JSON 解析容错：`_parse_story_json()` 有 4 级回退解析 + 3 次自动重试（每次重选解说风格），有效降低 LLM 返回格式异常导致的失败率
+- 画幅宽度随机化：`_select_canvas()` 先随机选比例预设，再从 `regen_widths: [768, 896, 1024, 1152]` 中随机选宽度，按比例计算高度，保证每次输出绝对尺寸不同

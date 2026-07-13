@@ -30,17 +30,19 @@
 |8|通史&志怪神魔合集|11.11%|《资治通鉴》、《西游记》、《聊斋志异》|战国至五代通史；唐神魔；清代志怪|
 |9|晚明晚清乱世演义|11.11%|《李自成演义》、太平天国故事、左宗棠西征|明末、晚清|
 
-## 已实现功能 (docs/superpowers/specs/2026-07-08-quality-improvements-design.md)
+## 已实现功能
 
 - ✅ Vision QA 质检 — `src/image_engine/vision_qa.py`，彩色泄漏/现代元素/人体畸变检测
 - ✅ Scene Planner — `StoryOutput.scene_plan` (8维分镜)，注入 image prompt 指导构图
 - ✅ 历史约束注入 — prompts.py system prompt 末尾含时代约束指令
 - ✅ 真实宣纸纹理 — assets/paper_textures/ 目录扫描叠加，回退到噪点
-- ✅ 标题题字 — post_process.py `_add_lianhuanhua_title()` 在图像顶部添加连环画风格标题
+- ✅ 统一底部解说条 — post_process.py `_add_bottom_info_bar()`，标题+旁白+出处合并到底部
 - ✅ 多后端支持 — RunningHub / Zhipu / Tongyi / MiniMax / Replicate / ComfyUI(dry)
 - ✅ 多LLM支持 — DeepSeek / Kimi / MiniMax
-- ✅ `--regen` 重新生成 — 从已有 metadata JSON 重新生成图像
+- ✅ 画幅随机化 — canvas_presets 5 种比例 + regen_widths 宽度随机（768/896/1024/1152）
+- ✅ JSON 解析容错 — `_parse_story_json()` 4 级回退 + 失败时自动重试 3 次
+- ✅ `--regen` 重新生成 — 遍历 `outputs/metadata/` 下所有 JSON，重新生成精简旁白+注入古典连环画风格+随机画幅出图，保存到 `outputs/works/`
 
 ## 配置
 
-- 图片尺寸: 1024×576 (16:9 横屏)
+- 图片尺寸: 随机画幅比例（4:3/7:5/3:2/16:9/2:1）+ 随机宽度（768/896/1024/1152），高度按比例缩放

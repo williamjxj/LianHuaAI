@@ -20,7 +20,7 @@ class PostProcessor:
     - 宣纸纹理叠加（模拟传统宣纸质感）
     - 泛黄做旧效果（复古泛黄纸张纹理）
     - 传统版式边框（经典连环画边框）
-    - 连环画风格标题题字
+    - 底部统一解说条：标题 + 旁白 + 出处
     """
 
     def __init__(self, config: Optional[dict] = None):
@@ -29,7 +29,7 @@ class PostProcessor:
         self.aging_enabled = self._get("post_process.aging_effect", True)
         self.aging_intensity = self._get("post_process.aging_intensity", 0.35)
         self.add_border = self._get("post_process.add_border", True)
-        self.add_title = self._get("post_process.add_title", True)
+        self.add_narration = self._get("post_process.add_narration", True)
 
         paper_texture_dir = self._get("post_process.paper_texture_dir", "assets/paper_textures")
         self.paper_texture_blend = self._get("post_process.paper_texture_blend", 0.15)
@@ -37,7 +37,8 @@ class PostProcessor:
         self._load_texture_files(paper_texture_dir)
 
         self._title_font: Optional[ImageFont.FreeTypeFont] = None
-        self._subtitle_font: Optional[ImageFont.FreeTypeFont] = None
+        self._body_font: Optional[ImageFont.FreeTypeFont] = None
+        self._source_font: Optional[ImageFont.FreeTypeFont] = None
 
     def _get(self, key: str, default):
         """从嵌套配置中取值"""
@@ -50,12 +51,20 @@ class PostProcessor:
                 return default
         return val if val is not None else default
 
-    def process(self, image: Image.Image, title: Optional[str] = None) -> Image.Image:
+    def process(
+        self,
+        image: Image.Image,
+        title: Optional[str] = None,
+        narration: Optional[str] = None,
+        source_book: Optional[str] = None,
+    ) -> Image.Image:
         """对图像执行全套后期处理
 
         Args:
             image: PIL Image (RGB 或 RGBA)
-            title: 可选，用于添加到图像上的连环画风格标题
+            title: 故事标题
+            narration: 旁白解说文字
+            source_book: 出处书目（如《三国演义》）
 
         Returns:
             处理后的 PIL Image
@@ -80,12 +89,11 @@ class PostProcessor:
         if self.aging_enabled:
             img_aged = self._apply_aging(img_paper)
         else:
-            # 如果不做旧，直接转 RGB 的暖白底
             img_aged = self._to_warm_tone(img_paper)
 
-        # 5. 添加连环画风格标题题字
-        if self.add_title and title:
-            img_aged = self._add_lianhuanhua_title(img_aged, title)
+        # 5. 底部统一解说条（标题 + 旁白 + 出处合并到底部）
+        if self.add_narration and (title or narration):
+            img_aged = self._add_bottom_info_bar(img_aged, title or "", narration or "", source_book or "")
 
         # 6. 添加传统边框
         if self.add_border:
@@ -93,67 +101,138 @@ class PostProcessor:
 
         return img_aged
 
-    def _get_title_font(self, target_size: int) -> ImageFont.FreeTypeFont:
-        """获取标题字体（Songti SC Bold），带缓存"""
-        if self._title_font is None or self._title_font.size != target_size:
-            self._title_font = ImageFont.truetype(_SONGTI_PATH, target_size, index=_SONGTI_INDEX)
-        return self._title_font
+    def _get_font_sized(self, cache_attr: str, size: int, index: int = 0) -> ImageFont.FreeTypeFont:
+        """获取指定尺寸的宋体字体（带缓存）"""
+        cached = getattr(self, cache_attr, None)
+        if cached is None or cached.size != size:
+            font = ImageFont.truetype(_SONGTI_PATH, size, index=index)
+            setattr(self, cache_attr, font)
+        return getattr(self, cache_attr)
 
-    def _add_lianhuanhua_title(self, img: Image.Image, title: str) -> Image.Image:
-        """在图像顶部添加传统连环画风格标题
+    def _add_bottom_info_bar(self, img: Image.Image, title: str, narration: str, source_book: str) -> Image.Image:
+        """在图像底部添加统一解说条：标题 + 旁白 + 出处
 
-        模仿传统小人书/连环画的版式标题：
-        - 顶部居中，宋体加粗
-        - 深墨色文字
-        - 半透明古纸底色条衬托
-        - 下方装饰细线分隔
+        布局设计（三行，字体从大到小）：
+        ┌─────────────────────────────────────────┐
+        │    仁寿宫惊变                              │  ← 标题（大号粗体，居中）
+        │    却说隋文帝卧病仁寿宫……                       │  ← 旁白（中号，居中，自动换行）
+        │    ——《隋唐演义》                           │  ← 出处（小号，右下）
+        └─────────────────────────────────────────┘
         """
         width, height = img.size
         draw = ImageDraw.Draw(img)
 
-        # 标题区高度：根据图像高度自适应（约 5%）
-        title_h = max(int(height * 0.055), 36)
-
-        # 字体：标题区高度的 55%
-        font_size = max(int(title_h * 0.55), 16)
-        font = self._get_title_font(font_size)
-
-        # 文字尺寸
-        bbox = draw.textbbox((0, 0), title, font=font)
-        text_w = bbox[2] - bbox[0]
-        text_h = bbox[3] - bbox[1]
-
-        # 标题底色条位置（顶部居中）
+        # ── 底部条区域参数 ──
         padding_x = int(width * 0.04)
-        margin_y = max(int(height * 0.015), 6)
-        rect_x0 = padding_x
-        rect_y0 = margin_y
-        rect_x1 = width - padding_x
-        rect_y1 = margin_y + title_h
+        bar_x0 = padding_x
+        bar_x1 = width - padding_x
+        inner_pad_x = int(width * 0.03)
 
-        # 绘制半透明古纸底色条（暖白泛黄，与做旧风格统一）
+        # 标题行（粗体）
+        title_font_size = max(int(height * 0.030), 14)
+        title_font = self._get_font_sized("_title_font", title_font_size, index=_SONGTI_INDEX)
+        title_h = title_font_size + 4
+
+        # 旁白行（常规体，自动换行，最多2行）
+        body_font_size = max(int(height * 0.022), 11)
+        body_font = self._get_font_sized("_body_font", body_font_size, index=0)
+        body_line_h = body_font_size + 3
+
+        max_body_w = (bar_x1 - bar_x0) - inner_pad_x * 2
+        body_lines = self._wrap_text(narration, body_font, max_body_w, draw)
+        # 最多显示2行
+        if len(body_lines) > 2:
+            body_lines = body_lines[:2]
+            # 最后一行为省略效果
+            if body_lines[1][-1] not in "。！？":
+                body_lines[1] = body_lines[1][:-1] + "…"
+        body_total_h = len(body_lines) * body_line_h if body_lines else 0
+
+        # 出处行（最小号）
+        source_font_size = max(int(height * 0.018), 9)
+        source_font = self._get_font_sized("_source_font", source_font_size, index=0)
+        source_h = source_font_size + 2 if source_book else 0
+
+        # ── 计算 bar 总高度（紧凑）──
+        inner_pad_y = int(height * 0.008)
+        bar_h = (
+            inner_pad_y * 2
+            + title_h
+            + (2 if body_total_h > 0 else 0)
+            + body_total_h
+            + (2 if source_h > 0 else 0)
+            + source_h
+        )
+        bar_h = max(bar_h, int(height * 0.07))
+
+        bottom_margin = max(int(height * 0.015), 4)
+        bar_y0 = height - bar_h - bottom_margin
+        bar_y1 = height - bottom_margin
+
+        # ── 绘制半透明古纸底色条 ──
         overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         overlay_draw = ImageDraw.Draw(overlay)
         overlay_draw.rounded_rectangle(
-            [rect_x0, rect_y0, rect_x1, rect_y1],
-            radius=3,
-            fill=(245, 235, 215, 160),  # 古纸色，半透明
+            [bar_x0, bar_y0, bar_x1, bar_y1],
+            radius=4,
+            fill=(245, 235, 215, 175),
         )
         img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
         draw = ImageDraw.Draw(img)
 
-        # 绘制标题文字（深墨色，带轻微做旧感）
-        text_x = (width - text_w) // 2
-        text_y = rect_y0 + (title_h - text_h) // 2 - 2
-        text_color = (45, 40, 35)  # 深墨色，非纯黑
-        draw.text((text_x, text_y), title, font=font, fill=text_color)
+        # 顶部装饰分隔线
+        sep_color = (100, 90, 80)
+        draw.line([(bar_x0 + 6, bar_y0), (bar_x1 - 6, bar_y0)], fill=sep_color, width=1)
 
-        # 下方装饰细线
-        line_y = rect_y1 + 2
-        line_color = (100, 90, 80)
-        draw.line([(padding_x + 4, line_y), (width - padding_x - 4, line_y)], fill=line_color, width=1)
+        # ── 1. 标题（大号粗体，居中） ──
+        text_color_dark = (45, 40, 35)
+        title_y = bar_y0 + inner_pad_y
+        bbox = draw.textbbox((0, 0), title, font=title_font)
+        title_w = bbox[2] - bbox[0]
+        draw.text(((width - title_w) // 2, title_y), title, font=title_font, fill=text_color_dark)
+
+        # ── 2. 旁白（中号，居中，自动换行） ──
+        body_y = title_y + title_h + 4
+        text_color_mid = (65, 58, 50)
+        for line in body_lines:
+            bbox = draw.textbbox((0, 0), line, font=body_font)
+            line_w = bbox[2] - bbox[0]
+            draw.text(((width - line_w) // 2, body_y), line, font=body_font, fill=text_color_mid)
+            body_y += body_line_h
+
+        # ── 3. 出处（小号，右下） ──
+        if source_book:
+            src_y = bar_y1 - source_h - inner_pad_y
+            src_text = f"——{source_book}"
+            bbox = draw.textbbox((0, 0), src_text, font=source_font)
+            src_w = bbox[2] - bbox[0]
+            text_color_light = (100, 90, 80)
+            draw.text((bar_x1 - inner_pad_x - src_w, src_y), src_text, font=source_font, fill=text_color_light)
 
         return img
+
+    @staticmethod
+    def _wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: int, draw: ImageDraw.Draw) -> list:
+        """将文本按最大宽度自动换行，返回行列表"""
+        lines = []
+        for paragraph in text.split("\n"):
+            if not paragraph:
+                lines.append("")
+                continue
+            chars = list(paragraph)
+            current_line = ""
+            for ch in chars:
+                test_line = current_line + ch
+                bbox = draw.textbbox((0, 0), test_line, font=font)
+                if (bbox[2] - bbox[0]) <= max_width:
+                    current_line = test_line
+                else:
+                    if current_line:
+                        lines.append(current_line)
+                    current_line = ch
+            if current_line:
+                lines.append(current_line)
+        return lines if lines else [""]
 
     def _enhance_contrast(self, img: Image.Image) -> Image.Image:
         """增强图像对比度，使墨线更清晰"""

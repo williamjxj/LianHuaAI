@@ -12,7 +12,6 @@ venv/
 .env
 
 # 项目输出（生成图片、元数据）
-outputs/images/*
 outputs/metadata/*
 !outputs/images/.gitkeep
 !outputs/metadata/.gitkeep

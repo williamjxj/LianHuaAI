@@ -21,16 +21,20 @@ BASE_URL = "https://www.runninghub.cn"
 # 全能图片G-2.0-文生图-低价渠道版 (消费级 Key 可用)
 DEFAULT_AI_APP_ID = "2046794551444119554"
 
-# 宽高比映射
+# 宽高比映射（覆盖所有 canvas_presets，仅用 API 支持的标准比例）
 _ASPECT_RATIOS = {
+    (768, 576): "4:3",
     (768, 1024): "3:4",
+    (806, 576): "4:3",      # 7:5 接近 4:3，用 _fit_canvas 精确裁切
+    (864, 576): "3:2",
     (1024, 768): "4:3",
     (1024, 1024): "1:1",
+    (1024, 576): "16:9",
+    (1152, 576): "2:1",
     (512, 1024): "1:2",
     (1024, 512): "2:1",
     (1152, 768): "3:2",
     (768, 1152): "2:3",
-    (1024, 576): "16:9",
     (576, 1024): "9:16",
 }
 
@@ -97,7 +101,17 @@ class RunningHubBackend(ImageBackend):
             return ImageResult(success=False, error=str(e))
 
     def _submit_task(self, prompt: str, width: int, height: int) -> str:
-        aspect_ratio = _ASPECT_RATIOS.get((width, height), "3:4")
+        aspect = width / height
+        # 找最接近的预定义比例
+        best_ratio = "3:4"  # default fallback
+        best_diff = float("inf")
+        for (rw, rh), ratio_str in _ASPECT_RATIOS.items():
+            r = rw / rh
+            diff = abs(r - aspect)
+            if diff < best_diff:
+                best_diff = diff
+                best_ratio = ratio_str
+        aspect_ratio = best_ratio
         payload = {
             "webappId": self.webapp_id,
             "apiKey": self.api_key,

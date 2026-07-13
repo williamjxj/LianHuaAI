@@ -16,9 +16,28 @@ image:
   # minimax: MiniMax image-01 模型，使用 MINIMAX_API_KEY
   # replicate: 备用后端（需 API Token，可能余额不足）
   backend: runninghub
-  # 输出图片尺寸 (16:9 横屏，适配手机横屏展示)
-  width: 1024
-  height: 576
+  # 输出画幅尺寸 — 每次随机选取一种比例，再随机缩放宽度
+  # 选项: random（每次随机）| 也可固定指定如 4:3
+  canvas_select: random
+  canvas_presets:
+    - name: "4:3 (classic)"
+      width: 768
+      height: 576
+    - name: "7:5 (classic alt)"
+      width: 806
+      height: 576
+    - name: "3:2"
+      width: 864
+      height: 576
+    - name: "16:9 (widescreen)"
+      width: 1024
+      height: 576
+    - name: "2:1 超宽"
+      width: 1152
+      height: 576
+  # 宽度随机缩放基数（从列表中随机选一个作为目标宽度，高度按比例缩放）
+  # 比如 4:3 预设选宽度 1024 → 高度 576*(1024/768)=768
+  regen_widths: [768, 896, 1024, 1152]
   # 每批生成数量
   batch_size: 1
 
@@ -83,7 +102,7 @@ image:
     aging_effect: true
     aging_intensity: 0.35
     add_border: true
-    add_title: true                            # 在图像顶部添加连环画风格标题题字
+    add_narration: true                         # 合并标题+旁白+出处于底部解说条
 
 story:
   # ─── 10大板块，每块10% ──────────────────────
@@ -104,9 +123,9 @@ story:
   # 也可指定具体风格: 林汉达 | 高阳 | 金庸 | 罗贯中 | 施耐庵
   narrator_style: random
 
-  # 旁白解说词字数范围
-  narration_min_chars: 80
-  narration_max_chars: 150
+  # 旁白解说词字数范围（精简短小，给画面留更多空间）
+  narration_min_chars: 30
+  narration_max_chars: 80
 
   # 避免重复题材
   avoid_recent_topics: 5

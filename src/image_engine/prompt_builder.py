@@ -12,7 +12,7 @@ BASE_STYLE_PROMPT = (
     "strong black-and-white contrast, "
     "fine ink line drawing with elegant brush strokes, "
     "layered ink density (墨分五色), "
-    "horizontal wide-screen comic panel composition, "
+    "traditional comic panel composition, "
     "vintage antique paper texture, yellowed patina, "
     "no modern color, no western painting style, "
     "detailed traditional Chinese architecture and costumes, "
@@ -81,6 +81,7 @@ ERA_CONTEXT = {
 
 def build_image_prompt(
     story: StoryOutput,
+    aspect_ratio: str = "4:3",
 ) -> str:
     """构建完整的图像生成 prompt
 
@@ -89,6 +90,7 @@ def build_image_prompt(
 
     Args:
         story: 故事输出
+        aspect_ratio: 画幅比例，如 "4:3", "16:9", "3:2", "2:1" 等
 
     Returns:
         完整 prompt 字符串
@@ -113,7 +115,7 @@ def build_image_prompt(
         "warm aged paper background, printed comic dot texture",
 
         # 连环画版式
-        "Layout: traditional Chinese comic (连环画) horizontal panel, "
+        f"Layout: traditional Chinese comic ({aspect_ratio}) horizontal panel, "
         "framed composition, narrative scene from classic novel",
 
         # 历史背景

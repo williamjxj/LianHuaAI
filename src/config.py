@@ -128,5 +128,57 @@ def get_minimax_api_key() -> str:
     return token
 
 
+def get_r2_config() -> dict:
+    """获取 Cloudflare R2 S3 兼容配置
+
+    .env 格式:
+        S3_API=https://<accountid>.r2.cloudflarestorage.com/<bucket>
+        R2_URL=https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev
+        R2_ACCESS_KEY_ID=<your_key_id>
+        R2_SECRET_ACCESS_KEY=<your_secret_key>
+
+    Returns:
+        dict 包含 endpoint, bucket, public_url, access_key_id, secret_access_key
+    """
+    from urllib.parse import urlparse
+
+    s3_api = os.getenv("S3_API")
+    r2_url = os.getenv("R2_URL")
+    access_key_id = os.getenv("R2_ACCESS_KEY_ID")
+    secret_access_key = os.getenv("R2_SECRET_ACCESS_KEY")
+
+    missing = []
+    if not s3_api:
+        missing.append("S3_API")
+    if not r2_url:
+        missing.append("R2_URL")
+    if not access_key_id:
+        missing.append("R2_ACCESS_KEY_ID")
+    if not secret_access_key:
+        missing.append("R2_SECRET_ACCESS_KEY")
+
+    if missing:
+        raise ValueError(
+            "R2 配置不完整，请在 .env 中补充:\n"
+            + "\n".join(f"  {k}=<value>" for k in missing)
+            + "\n\n格式说明:\n"
+            "  S3_API: https://<accountid>.r2.cloudflarestorage.com/<bucket>\n"
+            "  R2_URL: https://pub-<xxxx>.r2.dev\n"
+            "  R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY: 在 R2 面板创建 API 令牌获得"
+        )
+
+    parsed = urlparse(s3_api)
+    endpoint = f"{parsed.scheme}://{parsed.netloc}"
+    bucket = parsed.path.strip("/")
+
+    return {
+        "endpoint": endpoint,
+        "bucket": bucket,
+        "public_url": r2_url.rstrip("/"),
+        "access_key_id": access_key_id,
+        "secret_access_key": secret_access_key,
+    }
+
+
 # 模块加载时自动加载环境变量
 load_env()

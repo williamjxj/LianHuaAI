@@ -39,7 +39,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 class ComicPipeline:
     """连环画生成管线"""
 
-    def __init__(self, config_path: Optional[Path] = None):
+    def __init__(self, config_path: Optional[Path] = None, r2_enabled: bool = False):
         self.config = load_config(config_path)
         self.config_path = config_path
 
@@ -52,12 +52,30 @@ class ComicPipeline:
         # 后端
         self.image_backend = None
 
-        # 输出目录
-        output_base = self.config.get("output_dir", str(PROJECT_ROOT / "outputs"))
-        self.image_dir = Path(output_base) / "images"
-        self.metadata_dir = Path(output_base) / "metadata"
-        self.image_dir.mkdir(parents=True, exist_ok=True)
-        self.metadata_dir.mkdir(parents=True, exist_ok=True)
+        # R2 对象存储
+        self.r2_enabled = r2_enabled
+        self.r2_client = None
+        self.r2_bucket: Optional[str] = None
+        self.r2_public_url: Optional[str] = None
+        if self.r2_enabled:
+            self._init_r2_client()
+
+        # 输出目录（处理断链 symlink 等异常路径）
+        output_base = Path(self.config.get("output_dir", str(PROJECT_ROOT / "outputs")))
+        self.image_dir = output_base / "images"
+        self.metadata_dir = output_base / "metadata"
+        try:
+            self.image_dir.mkdir(parents=True, exist_ok=True)
+            self.metadata_dir.mkdir(parents=True, exist_ok=True)
+        except (OSError, FileExistsError):
+            # 输出目录不可用（断链 symlink 等），R2 模式下降级到 temp dir
+            import tempfile
+            tmp = Path(tempfile.mkdtemp(prefix="lianhuan-"))
+            self.image_dir = tmp / "images"
+            self.metadata_dir = tmp / "metadata"
+            self.image_dir.mkdir(parents=True, exist_ok=True)
+            self.metadata_dir.mkdir(parents=True, exist_ok=True)
+            print(f"   ⚠️  输出目录不可用，降级到临时目录: {tmp}")
 
     def _init_backend(self):
         """懒初始化图像后端"""
@@ -257,7 +275,7 @@ class ComicPipeline:
 
         return result
 
-    def _download_and_process(self, url: str, title: str, narration: str = "", source_book: str = "", target_w: int = 768, target_h: int = 576) -> Optional[Path]:
+    def _download_and_process(self, url: str, title: str, narration: str = "", source_book: str = "", target_w: int = 768, target_h: int = 576) -> Optional[str]:
         """下载远程图片并应用后期处理（不保存中间 raw 图）
 
         Args:
@@ -267,7 +285,7 @@ class ComicPipeline:
             target_h: 目标画幅高度
 
         Returns:
-            本地保存路径
+            本地保存路径字符串，或 R2 公开 URL（r2_enabled 时），失败返回 None
         """
         try:
             resp = requests.get(url, timeout=60)
@@ -289,11 +307,15 @@ class ComicPipeline:
             # 后期处理（标题题字 + 旁白解说 + 宣纸纹理 + 做旧 + 边框）
             print("   🎨 应用后期处理（连环画标题 + 旁白解说 + 宣纸纹理 + 做旧 + 边框）...")
             processed = self.post_processor.process(img, title=title, narration=narration, source_book=source_book)
-            final_path = self.image_dir / f"{safe_name}.png"
-            processed.save(final_path, quality=95)
+            key = f"{safe_name}.png"
 
-            print(f"   💾 已保存: {final_path}")
-            return final_path
+            if self.r2_enabled:
+                return self._upload_to_r2(processed, key)
+            else:
+                final_path = self.image_dir / key
+                processed.save(final_path, quality=95)
+                print(f"   💾 已保存: {final_path}")
+                return str(final_path)
 
         except Exception as e:
             print(f"   ⚠️ 图片处理失败: {e}")
@@ -332,6 +354,40 @@ class ComicPipeline:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
         return path
+
+    def _init_r2_client(self):
+        """初始化 R2 S3 兼容客户端（boto3）"""
+        from src.config import get_r2_config
+        import boto3
+        from botocore.config import Config
+
+        r2 = get_r2_config()
+        self.r2_client = boto3.client(
+            "s3",
+            endpoint_url=r2["endpoint"],
+            aws_access_key_id=r2["access_key_id"],
+            aws_secret_access_key=r2["secret_access_key"],
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+        self.r2_bucket = r2["bucket"]
+        self.r2_public_url = r2["public_url"]
+
+    def _upload_to_r2(self, image: Image.Image, key: str) -> str:
+        """上传 PIL Image 到 R2 bucket，返回公开访问 URL"""
+        buf = io.BytesIO()
+        image.save(buf, format="PNG")
+        buf.seek(0)
+
+        self.r2_client.put_object(
+            Bucket=self.r2_bucket,
+            Key=key,
+            Body=buf,
+            ContentType="image/png",
+        )
+        url = f"{self.r2_public_url}/{key}"
+        print(f"   ☁️  已上传至 R2: {url}")
+        return url
 
     @staticmethod
     def _safe_filename(title: str) -> str:
@@ -533,12 +589,17 @@ class ComicPipeline:
                             narration=narration,
                             source_book=source_book,
                         )
-                        final_path = works_dir / f"{safe_name}.png"
-                        processed.save(final_path, quality=95)
-                        print(f"   💾 已保存: {final_path}")
+
+                        if self.r2_enabled:
+                            image_path = self._upload_to_r2(processed, f"{safe_name}.png")
+                        else:
+                            final_path = works_dir / f"{safe_name}.png"
+                            processed.save(final_path, quality=95)
+                            print(f"   💾 已保存: {final_path}")
+                            image_path = str(final_path)
 
                         # 更新 metadata 并保存到 works 侧
-                        metadata["image_path"] = str(final_path)
+                        metadata["image_path"] = image_path
                         metadata["image_url"] = backend_result.image_url
                         metadata["narration"] = narration
                         metadata["image_prompt"] = modified_prompt
@@ -580,6 +641,7 @@ def main():
             f"  可选题材: {', '.join(HISTORY_BOARDS.keys())}\n"
             "  python -m src.main --batch 10 --delay 5   # 生成10幅，间隔5秒\n"
             "  python -m src.main --regen                # 从已有 metadata 重新生成图像\n"
+            "  python -m src.main --batch 5 --r2        # 生成5幅，上传至 R2 不保存本地\n"
         ),
     )
     parser.add_argument(
@@ -623,12 +685,17 @@ choices=list(HISTORY_BOARDS.keys()),
         action="store_true",
         help="从已有 metadata JSON 重新生成图像（不重新生成故事/Prompt）",
     )
+    parser.add_argument(
+        "--r2",
+        action="store_true",
+        help="上传图片到 Cloudflare R2 (comic bucket)，不保存本地",
+    )
 
     args = parser.parse_args()
 
     # 初始化管线
     config_path = Path(args.config) if args.config else None
-    pipeline = ComicPipeline(config_path)
+    pipeline = ComicPipeline(config_path, r2_enabled=args.r2)
 
     # 自定义输出目录
     if args.output:
@@ -651,7 +718,11 @@ choices=list(HISTORY_BOARDS.keys()),
     print("🎨 中国传统白描连环画生成器")
     print(f"   图像后端: {pipeline.config['image'].get('backend', '未配置')}")
     print(f"   LLM: {pipeline.config['llm'].get('provider', '未配置')}")
-    print(f"   输出目录: {pipeline.image_dir.parent}\n")
+    if args.r2:
+        print(f"   ☁️  上传至 R2: {pipeline.r2_public_url} (bucket: {pipeline.r2_bucket})")
+    else:
+        print(f"   输出目录: {pipeline.image_dir.parent}")
+    print()
 
     pipeline.run_batch(
         count=args.batch,

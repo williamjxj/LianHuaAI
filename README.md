@@ -6,19 +6,19 @@
 
 ## 🖼️ 作品展示 (Gallery)
 
-点击图片查看完整大图 · [浏览全部已生成作品 →](./outputs/images/)
+点击图片查看完整大图 · [🖥️ 本地画廊浏览全部作品 →](http://localhost:8080)（需先启动 `venv/bin/python scripts/r2_gallery.py 8080`）· [📖 画廊配置指南 →](./docs/r2-gallery-guide.md)
 
-| 先秦·商鞅立木取信 | 三国·长坂坡单骑救主 |
+| 东汉·光武昆阳突阵 | 三国·孟德献刀刺董卓 |
 |:---:|:---:|
-| [![商鞅立木取信](./outputs/images/商鞅立木取信.png)](./outputs/images/商鞅立木取信.png) | [![长坂坡单骑救主](./outputs/images/长坂坡单骑救主_20260709_090355.png)](./outputs/images/长坂坡单骑救主_20260709_090355.png) |
+| [![光武昆阳突阵](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev/光武昆阳突阵图_20260714_123057.png)](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev/光武昆阳突阵图_20260714_123057.png) | [![孟德献刀刺董卓](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev/孟德献刀刺董卓_20260714_142435.png)](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev/孟德献刀刺董卓_20260714_142435.png) |
 
-| 秦末·巨鹿破釜沉舟 | 明代·诚意伯登坛祈甘霖 |
+| 周幽王·千金一笑失江山 | 宋代·金沙滩双龙困主 |
 |:---:|:---:|
-| [![巨鹿破釜沉舟](./outputs/images/巨鹿破釜沉舟_20260713_162436.png)](./outputs/images/巨鹿破釜沉舟_20260713_162436.png) | [![诚意伯登坛祈甘霖](./outputs/images/诚意伯登坛祈甘霖.png)](./outputs/images/诚意伯登坛祈甘霖.png) |
+| [![千金一笑失江山](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev/千金一笑失江山_20260714_141726.png)](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev/千金一笑失江山_20260714_141726.png) | [![金沙滩双龙困主](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev/金沙滩双龙困主_20260714_142106.png)](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev/金沙滩双龙困主_20260714_142106.png) |
 
 > 以上作品均为 AI 自动生成，经白描 Prompt 约束 + 后期做旧处理，呈现宣纸墨线效果。每幅作品包含完整的历史故事解说与结构化 Scene Plan 场景规划。
 >
-> 📂 所有已生成作品可在 [`outputs/images/`](./outputs/images/) 目录查看，对应的元数据（画师、解说词、Prompt 等）在 [`outputs/metadata/`](./outputs/metadata/)。
+> 📂 所有已生成作品存储在 Cloudflare R2，可通过 [在线画廊](https://pub-349ba70c209a4d1eb96f5f9b7b5f946c.r2.dev) 或 [本地画廊服务器](./docs/r2-gallery-guide.md) 浏览。元数据（画师、解说词、Prompt 等）在 [`outputs/metadata/`](./outputs/metadata/)。
 
 ---
 
@@ -181,10 +181,10 @@ python -m src.main --regen
 
 ```
 outputs/
-├── images/                        ← 📂 [浏览已生成图片](./outputs/images/)
+├── images/                        ← 📂 本地已生成图片
 │   ├── 关羽温酒斩华雄_20260708_120000.png      # 处理后成品
 │   └── 关羽温酒斩华雄_20260708_120000_raw.png  # 原始下载图
-├── metadata/                      ← 📂 [浏览生成元数据](./outputs/metadata/)
+├── metadata/                      ← 📂 生成元数据
 │   └── 关羽温酒斩华雄_20260708_120000.json      # 生成元数据
 └── works/                         ← 📂 `--regen` 模式输出目录
     ├── 关羽温酒斩华雄.png                        # 重新生成的图像

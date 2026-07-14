@@ -31,3 +31,5 @@ assets/workflows/*.json
 docs/*.html
 .omo/
 assets/
+assets
+outputs
